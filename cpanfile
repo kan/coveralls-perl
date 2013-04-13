@@ -8,3 +8,4 @@ on configure => sub {
 on 'develop' => sub {
 };
 
+requires 'Devel::Cover';
