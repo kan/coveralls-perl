@@ -54,11 +54,9 @@ sub report {
     }
 
     my $json = {
-        repo_token => $config->{repo_token} || '',
         source_files => \@sfs,
     };
-
-    print Dumper(\%ENV) . "\n";
+    $json->{repo_token} = $config->{repo_token} if $config->{repo_token};
 
     my $is_travis;
     if ($ENV{TRAVIS}) {
