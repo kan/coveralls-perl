@@ -58,7 +58,7 @@ sub report {
         source_files => \@sfs,
     };
 
-    warn Dumper(\%ENV);
+    print Dumper(\%ENV) . "\n";
 
     my $is_travis;
     if ($ENV{TRAVIS}) {
