@@ -1,10 +1,10 @@
 {
    "abstract" : "It's new $module",
    "author" : [
-      "Kan Fushihara E<lt>kan.fushihara@gmail.comE<gt>"
+      "Kan Fushihara <kan.fushihara@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Module::Build version 0.4003, CPAN::Meta::Converter version 2.130880",
+   "generated_by" : "Minilla/v0.0.53, CPAN::Meta::Converter version 2.130880",
    "license" : [
       "perl_5"
    ],
@@ -15,27 +15,58 @@
    "name" : "Devel-Cover-Report-Coveralls",
    "no_index" : {
       "directory" : [
-         "inc"
+         "t",
+         "xt",
+         "inc",
+         "share",
+         "eg",
+         "examples",
+         "author"
       ]
    },
    "prereqs" : {
       "configure" : {
          "requires" : {
+            "CPAN::Meta" : "0",
+            "CPAN::Meta::Prereqs" : "0",
             "Module::Build" : "0.38"
+         }
+      },
+      "develop" : {
+         "requires" : {
+            "Pod::Wordlist::hanekomu" : "0",
+            "Test::CPAN::Meta" : "0",
+            "Test::MinimumVersion" : "0.10108",
+            "Test::Pod" : "1.41",
+            "Test::Spelling" : "0"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "Devel::Cover" : "0",
+            "Furl" : "0",
+            "JSON::XS" : "0",
+            "YAML" : "0",
+            "perl" : "5.008005"
+         }
+      },
+      "test" : {
+         "requires" : {
+            "Test::More" : "0.98"
          }
       }
    },
-   "provides" : {
-      "Devel::Cover::Report::Coveralls" : {
-         "file" : "lib/Devel/Cover/Report/Coveralls.pm",
-         "version" : "0.01"
-      }
-   },
-   "release_status" : "stable",
+   "release_status" : "unstable",
    "resources" : {
-      "license" : [
-         "http://dev.perl.org/licenses/"
-      ]
+      "bugtracker" : {
+         "web" : "https://github.com/kan/coveralls-perl/issues"
+      },
+      "homepage" : "https://github.com/kan/coveralls-perl",
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/kan/coveralls-perl.git",
+         "web" : "https://github.com/kan/coveralls-perl"
+      }
    },
    "version" : "0.01"
 }
