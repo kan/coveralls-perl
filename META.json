@@ -52,6 +52,7 @@
       },
       "test" : {
          "requires" : {
+            "FindBin" : "0",
             "Test::More" : "0.98"
          }
       }

@@ -13,40 +13,32 @@ use JSON::XS;
 use YAML;
 use Furl;
 
-sub report {
-    my ($pkg, $db, $options) = @_;
+sub get_source {
+    my ($file, $callback) = @_;
 
-    my $cover = $db->cover;
+    my $source = '';
+    my @coverage;
 
-    my @sfs;
+    open F, $file or warn("Unable to open $file: $!\n"), return;
 
-    for my $file (@{$options->{file}}) {
-        my $f = $cover->file($file);
-        my $c = $f->statement();
+    while (defined(my $l = <F>)) {
+        chomp $l;
+        my $n = $.;
 
-        my $source = '';
-        my @coverage;
-
-        open F, $file or warn("Unable to open $file: $!\n"), return;
-
-        while (defined(my $l = <F>)) {
-            chomp $l;
-            my $n = $.;
-
-            $source .= "$l\n";
-            my $l = $c->location($n);
-            push @coverage, $l ? $l->[0]->covered : $l;
-        }
-
-        close(F);
-
-        push @sfs, {
-            name => $file,
-            source => $source,
-            coverage => \@coverage,
-        };
+        $source .= "$l\n";
+        push @coverage, $callback->($n);
     }
 
+    close(F);
+
+    return +{
+        name => $file,
+        source => $source,
+        coverage => \@coverage,
+    };
+}
+
+sub get_git_info {
     my $git = {
         head => {
             id              => `git log -1 --pretty=format:'%H'`,
@@ -67,29 +59,62 @@ sub report {
     $branch =~ s/^\* //;
     $git->{branch} = $branch;
 
+    return $git;
+}
+
+sub get_config {
     my $config = {};
     if (-f $CONFIG_FILE) {
         $config = YAML::LoadFile($CONFIG_FILE);
     }
 
-    my $json = {
-        git => $git,
-        source_files => \@sfs,
-    };
+    my $json = {};
     $json->{repo_token} = $config->{repo_token} if $config->{repo_token};
+    $json->{repo_token} = $ENV{COVERALLS_REPO_TOKEN} if $ENV{COVERALLS_REPO_TOKEN};
 
     my $is_travis;
     if ($ENV{TRAVIS}) {
         $is_travis = 1;
         $json->{service_name} = $config->{service_name} || 'travis-ci';
         $json->{service_job_id} = $ENV{TRAVIS_JOB_ID};
-        $json->{repo_token} = $ENV{COVERALLS_REPO_TOKEN} if $ENV{COVERALLS_REPO_TOKEN};
+    } elsif ($ENV{CIRCLECI}) {
+        $json->{service_name} = 'circleci';
+        $json->{service_number} = $ENV{CIRCLE_BUILD_NUM};
+    } elsif ($ENV{SEMAPHORE}) {
+        $json->{service_name} = 'semaphore';
+        $json->{service_number} = $ENV{SEMAPHORE_BUILD_NUMBER};
+    } elsif ($ENV{JENKINS_URL}) {
+        $json->{service_name} = 'jenkins';
+        $json->{service_number} = $ENV{BUILD_NUM};
     } else {
         $is_travis = 0;
         $json->{service_name} = $config->{service_name} || $SERVICE_NAME;
+        $json->{service_event_type} = 'manual';
     }
 
     die "required repo_token in $CONFIG_FILE, or launch via Travis" if !$json->{repo_token} && !$is_travis;
+
+    return $json;
+}
+
+sub report {
+    my ($pkg, $db, $options) = @_;
+
+    my $cover = $db->cover;
+
+    my @sfs;
+
+    for my $file (@{$options->{file}}) {
+        my $f = $cover->file($file);
+        my $c = $f->statement();
+
+        push @sfs, get_source( $file,
+            sub { my $l = $c->location( $_[0] ); $l ? $l->[0]->covered : $l } );
+    }
+
+    my $json = get_config();
+    $json->{git} = eval { get_git_info() } || {};
+    $json->{source_files} = \@sfs;
 
     my $furl = Furl->new;
     my $response = $furl->post($API_ENDPOINT, [], [ json => encode_json $json ]);
