@@ -12,6 +12,7 @@ use Devel::Cover::DB;
 use JSON::XS;
 use YAML;
 use Furl;
+use Data::Dumper;
 
 sub report {
     my ($pkg, $db, $options) = @_;
@@ -56,6 +57,8 @@ sub report {
         repo_token => $config->{repo_token} || '',
         source_files => \@sfs,
     };
+
+    warn Dumper(\%ENV);
 
     my $is_travis;
     if ($ENV{TRAVIS}) {
