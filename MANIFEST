@@ -1,0 +1,11 @@
+.travis.yml
+Build.PL
+Changes
+cpanfile
+lib/Devel/Cover/Report/Coveralls.pm
+LICENSE
+MANIFEST			This list of files
+META.json
+META.yml
+README.md
+t/00_compile.t
