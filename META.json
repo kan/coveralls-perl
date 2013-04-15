@@ -1,5 +1,5 @@
 {
-   "abstract" : "It's new $module",
+   "abstract" : "coveralls backend for Devel::Cover",
    "author" : [
       "Kan Fushihara <kan.fushihara@gmail.com>"
    ],
