@@ -4,10 +4,14 @@ use warnings;
 use 5.008005;
 our $VERSION = "0.01";
 
+our $CONFIG_FILE = '.coveralls.yml';
+our $API_ENDPOINT = 'https://coveralls.io/api/v1/jobs';
+our $SERVICE_NAME = 'coveralls-perl';
+
 use Devel::Cover::DB;
 use JSON::XS;
+use YAML;
 use Furl;
-use Data::Dumper;
 
 sub report {
     my ($pkg, $db, $options) = @_;
@@ -43,15 +47,38 @@ sub report {
         };
     }
 
-    my $content = encode_json({
-        repo_token => 'mw72Q8Crzpt4hJKy3GDHXIo8SbsTcL6zZ',
-        service_name => 'travis-ci',
+    my $config = {};
+    if (-f $CONFIG_FILE) {
+        $config = YAML::LoadFile($CONFIG_FILE);
+    }
+
+    my $json = {
+        repo_token => $config->{repo_token} || '',
         source_files => \@sfs,
-    });
+    };
+
+    my $is_travis;
+    if ($ENV{TRAVIS}) {
+        $is_travis = 1;
+        $json->{service_name} = $config->{service_name} || 'travis-ci';
+        $json->{service_job_id} = $ENV{TRAVIS_JOB_ID};
+        $json->{repo_token} = $ENV{COVERALLS_REPO_TOKEN} if $ENV{COVERALLS_REPO_TOKEN};
+    } else {
+        $is_travis = 0;
+        $json->{service_name} = $config->{service_name} || $SERVICE_NAME;
+    }
+
+    die "required repo_token in $CONFIG_FILE, or launch via Travis" if !$json->{repo_token} && !$is_travis;
 
     my $furl = Furl->new;
-    my $response = $furl->post('https://coveralls.io/api/v1/jobs', [], [ json_file => [$content] ]);
-    warn Dumper(decode_json $response->content);
+    my $response = $furl->post($API_ENDPOINT, [], [ json => encode_json $json ]);
+
+    my $res = decode_json($response->content);
+    if ($response->is_success) {
+        print "register: " . $res->{url} . "\n";
+    } else {
+        print "error: " . $res->{message} . "\n";
+    }
 }
 
 

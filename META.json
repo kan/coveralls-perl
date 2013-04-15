@@ -54,5 +54,16 @@
       }
    },
    "release_status" : "unstable",
+   "resources" : {
+      "bugtracker" : {
+         "web" : "https://github.com/kan/coveralls-perl/issues"
+      },
+      "homepage" : "https://github.com/kan/coveralls-perl",
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/kan/coveralls-perl.git",
+         "web" : "https://github.com/kan/coveralls-perl"
+      }
+   },
    "version" : "0.01"
 }

@@ -9,3 +9,6 @@ on 'develop' => sub {
 };
 
 requires 'Devel::Cover';
+requires 'JSON::XS';
+requires 'YAML';
+requires 'Furl';
