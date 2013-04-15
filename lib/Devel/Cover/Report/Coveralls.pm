@@ -12,7 +12,6 @@ use Devel::Cover::DB;
 use JSON::XS;
 use YAML;
 use Furl;
-use Data::Dumper;
 
 sub report {
     my ($pkg, $db, $options) = @_;
@@ -48,12 +47,33 @@ sub report {
         };
     }
 
+    my $git = {
+        head => {
+            id              => `git log -1 --pretty=format:'%H'`,
+            author_name     => `git log -1 --pretty=format:'%aN'`,
+            author_email    => `git log -1 --pretty=format:'%ae'`,
+            committer_name  => `git log -1 --pretty=format:'%cN'`,
+            committer_email => `git log -1 --pretty=format:'%ce'`,
+            message         => `git log -1 --pretty=format:'%s'`
+        },
+        remotes => [
+              map {
+                  my ( $name, $url ) = split( " ", $_ );
+                  +{ name => $name, url => $url }
+              } split( "\n", `git remote -v` )
+        ],
+    };
+    my ($branch,) = grep { /^\* / } split( "\n", `git branch` );
+    $branch =~ s/^\* //;
+    $git->{branch} = $branch;
+
     my $config = {};
     if (-f $CONFIG_FILE) {
         $config = YAML::LoadFile($CONFIG_FILE);
     }
 
     my $json = {
+        git => $git,
         source_files => \@sfs,
     };
     $json->{repo_token} = $config->{repo_token} if $config->{repo_token};
