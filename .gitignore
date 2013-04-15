@@ -29,3 +29,4 @@ _build_params
 !Build/
 !META.json
 /.build
+/Devel-Cover-Report-Coveralls-*
