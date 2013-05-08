@@ -19,6 +19,7 @@ subtest 'get_config' => sub {
 };
 
 subtest 'get_config local' => sub {
+    local $ENV{TRAVIS}        = undef; # reset on travis
     local $ENV{COVERALLS_REPO_TOKEN} = 'xxxxx';
 
     my $config = {

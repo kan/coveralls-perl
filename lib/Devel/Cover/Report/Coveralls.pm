@@ -2,7 +2,7 @@ package Devel::Cover::Report::Coveralls;
 use strict;
 use warnings;
 use 5.008005;
-our $VERSION = "0.01";
+our $VERSION = "0.02";
 
 our $CONFIG_FILE = '.coveralls.yml';
 our $API_ENDPOINT = 'https://coveralls.io/api/v1/jobs';
@@ -118,6 +118,7 @@ sub report {
 
     my $furl = Furl->new;
     my $response = $furl->post($API_ENDPOINT, [], [ json => encode_json $json ]);
+    print encode_json $json;
 
     my $res = decode_json($response->content);
     if ($response->is_success) {
