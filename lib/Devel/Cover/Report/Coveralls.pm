@@ -118,7 +118,6 @@ sub report {
 
     my $furl = Furl->new;
     my $response = $furl->post($API_ENDPOINT, [], [ json => encode_json $json ]);
-    print encode_json $json;
 
     my $res = decode_json($response->content);
     if ($response->is_success) {
