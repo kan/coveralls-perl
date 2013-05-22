@@ -160,7 +160,7 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 =begin html
 
-<img src="http://media.tumblr.com/ec2a3b369f1380495512d827e9e8cfa1/tumblr_inline_mlc34k7g1a1qz4rgp.png" />
+<img src="http://kan.github.io/images/p5-ltsv.png" />
 
 =end html
 
