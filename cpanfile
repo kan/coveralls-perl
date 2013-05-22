@@ -7,6 +7,7 @@ on configure => sub {
 };
 
 on 'develop' => sub {
+    requires 'Version::Next';
 };
 
 requires 'Devel::Cover';
