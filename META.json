@@ -4,7 +4,7 @@
       "Kan Fushihara <kan.fushihara@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v0.4.2, CPAN::Meta::Converter version 2.130880",
+   "generated_by" : "Minilla/v0.4.3, CPAN::Meta::Converter version 2.120921",
    "license" : [
       "perl_5"
    ],
@@ -68,5 +68,8 @@
          "web" : "https://github.com/kan/coveralls-perl"
       }
    },
-   "version" : "0.02"
+   "version" : "0.02",
+   "x_contributors" : [
+      "Masayuki Matsuki <y.songmu@gmail.com>"
+   ]
 }
