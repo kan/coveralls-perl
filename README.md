@@ -2,19 +2,36 @@
 
 Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
-# SYNOPSIS
+# USAGE
 
-    # .travis.yaml
+1\. Add your repo to coveralls. https://coveralls.io/repos/new
+
+2\. Add setting to .travis.yaml (before\_install and script section)
+
     language: perl
     perl:
       - 5.16.3
       - 5.14.4
     before_install:
-      cpanm Devel::Cover::Report::Coveralls
+      cpanm -n Devel::Cover::Report::Coveralls
     script:
-      perl Build.PL && ./Build build && cover -test
-    after_success:
-      cover -report coveralls
+      perl Build.PL && ./Build build && cover -test -report coveralls
+
+3\. push new change to github
+
+4\. updated coveralls your project page
+
+<img src="http://media.tumblr.com/ec2a3b369f1380495512d827e9e8cfa1/tumblr\_inline\_mlc34k7g1a1qz4rgp.png" />
+
+## another CI
+
+1\. Get repo\_token from your project page in coveralls.
+
+2\. Write .coveralls.yml (don't add this to public repo)
+
+    repo_token: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+3\. Run CI.
 
 # DESCRIPTION
 
