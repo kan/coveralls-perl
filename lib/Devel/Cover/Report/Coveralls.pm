@@ -119,8 +119,10 @@ sub report {
     my $furl = Furl->new;
     my $response = $furl->post($API_ENDPOINT, [], [ json => encode_json $json ]);
 
-    my $res = decode_json($response->content);
-    if ($response->is_success) {
+    my $res = eval { decode_json($response->content); };
+    if ($@) {
+        print "error: " . $response->content;
+    } elsif ($response->is_success) {
         print "register: " . $res->{url} . "\n";
     } else {
         print "error: " . $res->{message} . "\n";
