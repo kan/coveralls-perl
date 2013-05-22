@@ -8,6 +8,7 @@ on configure => sub {
 
 on 'develop' => sub {
     requires 'Version::Next';
+    requires 'CPAN::Uploader';
 };
 
 requires 'Devel::Cover';

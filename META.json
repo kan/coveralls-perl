@@ -34,10 +34,12 @@
       },
       "develop" : {
          "requires" : {
+            "CPAN::Uploader" : "0",
             "Test::CPAN::Meta" : "0",
             "Test::MinimumVersion" : "0.10108",
             "Test::Pod" : "1.41",
-            "Test::Spellunker" : "v0.2.2"
+            "Test::Spellunker" : "v0.2.2",
+            "Version::Next" : "0"
          }
       },
       "runtime" : {
