@@ -11,7 +11,7 @@ on 'develop' => sub {
     requires 'CPAN::Uploader';
 };
 
-requires 'Devel::Cover';
+requires 'Devel::Cover', 1.02;
 requires 'JSON::XS';
 requires 'YAML';
 requires 'Furl';

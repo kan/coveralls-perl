@@ -2,6 +2,9 @@ Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
 
+0.05 2013-05-27T07:18:02Z
+    - need Devel::Cover 1.02 (cover -test exists with the staus of the underlying test run)
+
 0.04 2013-05-22T12:55:18Z
     - fixed bugs at coveralls API result broken (thanks songmu)
 

@@ -44,7 +44,7 @@
       },
       "runtime" : {
          "requires" : {
-            "Devel::Cover" : "0",
+            "Devel::Cover" : "1.02",
             "Furl" : "0",
             "JSON::XS" : "0",
             "YAML" : "0",
@@ -70,7 +70,7 @@
          "web" : "https://github.com/kan/coveralls-perl"
       }
    },
-   "version" : "0.04",
+   "version" : "0.05",
    "x_contributors" : [
       "Masayuki Matsuki <y.songmu@gmail.com>"
    ]
