@@ -141,7 +141,7 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 =head1 USAGE
 
-=head Travis CI
+=head2 Travis CI
 
 1. Add your repo to coveralls. https://coveralls.io/repos/new
 
