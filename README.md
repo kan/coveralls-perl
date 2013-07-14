@@ -4,6 +4,8 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 # USAGE
 
+## Travis CI
+
 1\. Add your repo to coveralls. https://coveralls.io/repos/new
 
 2\. Add setting to .travis.yaml (before\_install and script section)
