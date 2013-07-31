@@ -4,7 +4,7 @@
       "Kan Fushihara <kan.fushihara@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v0.5.6, CPAN::Meta::Converter version 2.131560",
+   "generated_by" : "Minilla/v0.5.5, CPAN::Meta::Converter version 2.130880",
    "license" : [
       "perl_5"
    ],
@@ -46,7 +46,7 @@
          "requires" : {
             "Devel::Cover" : "1.02",
             "Furl" : "0",
-            "JSON::XS" : "0",
+            "JSON" : "0",
             "YAML" : "0",
             "perl" : "5.008005"
          }
@@ -61,13 +61,13 @@
    "release_status" : "unstable",
    "resources" : {
       "bugtracker" : {
-         "web" : "https://github.com/kan/coveralls-perl/issues"
+         "web" : "https://github.com/ytnobody/coveralls-perl/issues"
       },
-      "homepage" : "https://github.com/kan/coveralls-perl",
+      "homepage" : "https://github.com/ytnobody/coveralls-perl",
       "repository" : {
          "type" : "git",
-         "url" : "git://github.com/kan/coveralls-perl.git",
-         "web" : "https://github.com/kan/coveralls-perl"
+         "url" : "git://github.com/ytnobody/coveralls-perl.git",
+         "web" : "https://github.com/ytnobody/coveralls-perl"
       }
    },
    "version" : "0.06",
