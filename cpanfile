@@ -15,3 +15,4 @@ requires 'Devel::Cover', 1.02;
 requires 'JSON::PP';
 requires 'YAML';
 requires 'Furl';
+requires 'IO::Socket::SSL';
