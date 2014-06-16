@@ -2,6 +2,9 @@ Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
 
+0.08 2014-06-16T09:21:06Z
+    - Add IO::Socket::SSL prereq (thanks haarg)
+
 0.07 2014-06-16T04:36:24Z
     - depend JSON::XS to JSON::PP (thanks fioux, karenetheridge)
 
