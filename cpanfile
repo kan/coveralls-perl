@@ -12,6 +12,6 @@ on 'develop' => sub {
 };
 
 requires 'Devel::Cover', 1.02;
-requires 'JSON::XS';
+requires 'JSON::PP';
 requires 'YAML';
 requires 'Furl';

@@ -9,7 +9,7 @@ our $API_ENDPOINT = 'https://coveralls.io/api/v1/jobs';
 our $SERVICE_NAME = 'coveralls-perl';
 
 use Devel::Cover::DB;
-use JSON::XS;
+use JSON::PP;
 use YAML;
 use Furl;
 

@@ -23,7 +23,9 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 4\. updated coveralls your project page
 
-<img src="http://kan.github.io/images/p5-ltsv.png" />
+<div>
+    <img src="http://kan.github.io/images/p5-ltsv.png" />
+</div>
 
 ## another CI
 
@@ -37,14 +39,14 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 # DESCRIPTION
 
-[https://coveralls.io/](https://coveralls.io/) is service to publish your coverage stats online with a lot of nice features. This module provides seamless integration with [Devel::Cover](http://search.cpan.org/perldoc?Devel::Cover) in your perl projects.
+[https://coveralls.io/](https://coveralls.io/) is service to publish your coverage stats online with a lot of nice features. This module provides seamless integration with [Devel::Cover](https://metacpan.org/pod/Devel::Cover) in your perl projects.
 
 # SEE ALSO
 
 [https://coveralls.io/](https://coveralls.io/)
 [https://coveralls.io/docs](https://coveralls.io/docs)
 [https://github.com/coagulant/coveralls-python](https://github.com/coagulant/coveralls-python)
-[Devel::Cover](http://search.cpan.org/perldoc?Devel::Cover)
+[Devel::Cover](https://metacpan.org/pod/Devel::Cover)
 
 # LICENSE
 

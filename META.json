@@ -4,7 +4,7 @@
       "Kan Fushihara <kan.fushihara@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v0.5.6, CPAN::Meta::Converter version 2.131560",
+   "generated_by" : "Minilla/v1.1.0, CPAN::Meta::Converter version 2.140640",
    "license" : [
       "perl_5"
    ],
@@ -21,7 +21,8 @@
          "share",
          "eg",
          "examples",
-         "author"
+         "author",
+         "builder"
       ]
    },
    "prereqs" : {
@@ -36,7 +37,8 @@
          "requires" : {
             "CPAN::Uploader" : "0",
             "Test::CPAN::Meta" : "0",
-            "Test::MinimumVersion" : "0.10108",
+            "Test::MinimumVersion::Fast" : "0.04",
+            "Test::PAUSE::Permissions" : "0.04",
             "Test::Pod" : "1.41",
             "Test::Spellunker" : "v0.2.7",
             "Version::Next" : "0"
@@ -46,7 +48,7 @@
          "requires" : {
             "Devel::Cover" : "1.02",
             "Furl" : "0",
-            "JSON::XS" : "0",
+            "JSON::PP" : "0",
             "YAML" : "0",
             "perl" : "5.008005"
          }
