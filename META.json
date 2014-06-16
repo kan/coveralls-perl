@@ -72,7 +72,7 @@
          "web" : "https://github.com/kan/coveralls-perl"
       }
    },
-   "version" : "0.06",
+   "version" : "0.07",
    "x_contributors" : [
       "Masayuki Matsuki <y.songmu@gmail.com>",
       "David Steinbrunner <dsteinbrunner@pobox.com>"
