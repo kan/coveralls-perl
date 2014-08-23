@@ -9,9 +9,9 @@ our $API_ENDPOINT = 'https://coveralls.io/api/v1/jobs';
 our $SERVICE_NAME = 'coveralls-perl';
 
 use Devel::Cover::DB;
+use HTTP::Tiny;
 use JSON::PP;
 use YAML;
-use Furl;
 
 sub get_source {
     my ($file, $callback) = @_;
@@ -116,13 +116,14 @@ sub report {
     $json->{git} = eval { get_git_info() } || {};
     $json->{source_files} = \@sfs;
 
-    my $furl = Furl->new;
-    my $response = $furl->post($API_ENDPOINT, [], [ json => encode_json $json ]);
+    my $response = HTTP::Tiny->new( verify_SSL => 1 )
+        ->post_form( $API_ENDPOINT, { json => encode_json $json } );
 
-    my $res = eval { decode_json($response->content); };
+    my $res = eval { decode_json $response->{content} };
+
     if ($@) {
-        print "error: " . $response->content;
-    } elsif ($response->is_success) {
+        print "error: " . $response->{content};
+    } elsif ($response->{success}) {
         print "register: " . $res->{url} . "\n";
     } else {
         print "error: " . $res->{message} . "\n";

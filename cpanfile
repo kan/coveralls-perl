@@ -12,7 +12,9 @@ on 'develop' => sub {
 };
 
 requires 'Devel::Cover', 1.02;
+requires 'HTTP::Tiny';
+requires 'IO::Socket::SSL', 1.42;
 requires 'JSON::PP';
+requires 'Mozilla::CA';
+requires 'Net::SSLeay', 1.49;
 requires 'YAML';
-requires 'Furl';
-requires 'IO::Socket::SSL';
