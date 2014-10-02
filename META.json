@@ -66,19 +66,19 @@
    "release_status" : "unstable",
    "resources" : {
       "bugtracker" : {
-         "web" : "https://github.com/kan/coveralls-perl/issues"
+         "web" : "ssh://git@github.com/kan/coveralls-perl/issues"
       },
-      "homepage" : "https://github.com/kan/coveralls-perl",
+      "homepage" : "ssh://git@github.com/kan/coveralls-perl",
       "repository" : {
-         "type" : "git",
-         "url" : "git://github.com/kan/coveralls-perl.git",
-         "web" : "https://github.com/kan/coveralls-perl"
+         "url" : "ssh://git@github.com/kan/coveralls-perl.git",
+         "web" : "ssh://git@github.com/kan/coveralls-perl"
       }
    },
-   "version" : "0.08",
+   "version" : "0.09",
    "x_contributors" : [
       "Masayuki Matsuki <y.songmu@gmail.com>",
       "David Steinbrunner <dsteinbrunner@pobox.com>",
-      "Graham Knop <haarg@haarg.org>"
+      "Graham Knop <haarg@haarg.org>",
+      "James Raspass <jraspass@gmail.com>"
    ]
 }

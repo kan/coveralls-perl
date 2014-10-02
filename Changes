@@ -2,6 +2,9 @@ Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
 
+0.09 2014-10-02T06:28:44Z
+    - Use core HTTP::Tiny instead of Furl (thanks JRaspass)
+
 0.08 2014-06-16T09:21:06Z
     - Add IO::Socket::SSL prereq (thanks haarg)
 
