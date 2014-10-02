@@ -47,9 +47,11 @@
       "runtime" : {
          "requires" : {
             "Devel::Cover" : "1.02",
-            "Furl" : "0",
-            "IO::Socket::SSL" : "0",
+            "HTTP::Tiny" : "0",
+            "IO::Socket::SSL" : "1.42",
             "JSON::PP" : "0",
+            "Mozilla::CA" : "0",
+            "Net::SSLeay" : "1.49",
             "YAML" : "0",
             "perl" : "5.008005"
          }
