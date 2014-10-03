@@ -4,7 +4,7 @@
       "Kan Fushihara <kan.fushihara@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v1.1.0, CPAN::Meta::Converter version 2.140640",
+   "generated_by" : "Minilla/v2.1.1, CPAN::Meta::Converter version 2.140640",
    "license" : [
       "perl_5"
    ],
@@ -28,8 +28,6 @@
    "prereqs" : {
       "configure" : {
          "requires" : {
-            "CPAN::Meta" : "0",
-            "CPAN::Meta::Prereqs" : "0",
             "Module::Build" : "0.38"
          }
       },
@@ -47,7 +45,7 @@
       "runtime" : {
          "requires" : {
             "Devel::Cover" : "1.02",
-            "HTTP::Tiny" : "0",
+            "HTTP::Tiny" : "0.014",
             "IO::Socket::SSL" : "1.42",
             "JSON::PP" : "0",
             "Mozilla::CA" : "0",
@@ -66,12 +64,13 @@
    "release_status" : "unstable",
    "resources" : {
       "bugtracker" : {
-         "web" : "ssh://git@github.com/kan/coveralls-perl/issues"
+         "web" : "https://github.com/kan/coveralls-perl/issues"
       },
-      "homepage" : "ssh://git@github.com/kan/coveralls-perl",
+      "homepage" : "https://github.com/kan/coveralls-perl",
       "repository" : {
-         "url" : "ssh://git@github.com/kan/coveralls-perl.git",
-         "web" : "ssh://git@github.com/kan/coveralls-perl"
+         "type" : "git",
+         "url" : "git://github.com/kan/coveralls-perl.git",
+         "web" : "https://github.com/kan/coveralls-perl"
       }
    },
    "version" : "0.09",
