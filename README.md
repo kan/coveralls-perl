@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/kan/coveralls-perl.png?branch=master)](https://travis-ci.org/kan/coveralls-perl)
 # NAME
 
 Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover

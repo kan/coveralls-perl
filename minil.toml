@@ -1,1 +1,2 @@
 name = "Devel-Cover-Report-Coveralls"
+badges = ['travis']
