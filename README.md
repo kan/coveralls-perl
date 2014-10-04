@@ -48,6 +48,10 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 [https://github.com/coagulant/coveralls-python](https://github.com/coagulant/coveralls-python)
 [Devel::Cover](https://metacpan.org/pod/Devel::Cover)
 
+## EXAMPLE
+
+[https://coveralls.io/r/kan/p5-smart-options](https://coveralls.io/r/kan/p5-smart-options)
+
 # LICENSE
 
 Copyright (C) Kan Fushihara
