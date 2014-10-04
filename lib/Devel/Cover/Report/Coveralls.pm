@@ -97,6 +97,22 @@ sub get_config {
     return $json;
 }
 
+sub _parse_line ($) {
+    my $c = shift;
+
+    return sub {
+        my $l = $c->location(shift);
+
+        return $l unless $l;
+
+        if ($l->[0]->uncoverable) {
+            return undef;
+        } else {
+            return $l->[0]->covered;
+        }
+    };
+}
+
 sub report {
     my ($pkg, $db, $options) = @_;
 
@@ -108,8 +124,7 @@ sub report {
         my $f = $cover->file($file);
         my $c = $f->statement();
 
-        push @sfs, get_source( $file,
-            sub { my $l = $c->location( $_[0] ); $l ? $l->[0]->covered : $l } );
+        push @sfs, get_source( $file, _parse_line $c );
     }
 
     my $json = get_config();
