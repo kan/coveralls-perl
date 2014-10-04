@@ -31,6 +31,8 @@ sub get_source {
 
     close(F);
 
+    $file =~ s!^blib/!!;
+
     return +{
         name => $file,
         source => $source,
@@ -202,6 +204,10 @@ L<https://coveralls.io/>
 L<https://coveralls.io/docs>
 L<https://github.com/coagulant/coveralls-python>
 L<Devel::Cover>
+
+=head2 EXAMPLE
+
+L<https://coveralls.io/r/kan/p5-smart-options>
 
 =head1 LICENSE
 
