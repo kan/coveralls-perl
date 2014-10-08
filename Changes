@@ -2,6 +2,9 @@ Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
 
+0.11 2014-10-08T09:13:22Z
+    - depends HTTP::Tiny 0.043 or later (thanks tobyink)
+
 0.10 2014-10-04T02:28:03Z
     - fixed metadata (thanks pjfl)
     - support uncoverable statement comment (thanks tobyink)
