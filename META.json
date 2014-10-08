@@ -4,7 +4,7 @@
       "Kan Fushihara <kan.fushihara@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v2.1.1, CPAN::Meta::Converter version 2.140640",
+   "generated_by" : "Minilla/v2.1.1, CPAN::Meta::Converter version 2.142690",
    "license" : [
       "perl_5"
    ],
@@ -45,7 +45,7 @@
       "runtime" : {
          "requires" : {
             "Devel::Cover" : "1.02",
-            "HTTP::Tiny" : "0.014",
+            "HTTP::Tiny" : "0.043",
             "IO::Socket::SSL" : "1.42",
             "JSON::PP" : "0",
             "Mozilla::CA" : "0",
