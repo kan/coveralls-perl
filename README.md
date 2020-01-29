@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/kan/coveralls-perl.png?branch=master)](https://travis-ci.org/kan/coveralls-perl)
+[![Build Status](https://travis-ci.org/kan/coveralls-perl.svg?branch=master)](https://travis-ci.org/kan/coveralls-perl)
 # NAME
 
 Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
@@ -40,14 +40,14 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 # DESCRIPTION
 
-[https://coveralls.io/](https://coveralls.io/) is service to publish your coverage stats online with a lot of nice features. This module provides seamless integration with [Devel::Cover](https://metacpan.org/pod/Devel::Cover) in your perl projects.
+[https://coveralls.io/](https://coveralls.io/) is service to publish your coverage stats online with a lot of nice features. This module provides seamless integration with [Devel::Cover](https://metacpan.org/pod/Devel%3A%3ACover) in your perl projects.
 
 # SEE ALSO
 
 [https://coveralls.io/](https://coveralls.io/)
 [https://coveralls.io/docs](https://coveralls.io/docs)
 [https://github.com/coagulant/coveralls-python](https://github.com/coagulant/coveralls-python)
-[Devel::Cover](https://metacpan.org/pod/Devel::Cover)
+[Devel::Cover](https://metacpan.org/pod/Devel%3A%3ACover)
 
 ## EXAMPLE
 
