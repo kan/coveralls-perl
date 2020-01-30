@@ -61,6 +61,10 @@ sub get_git_info {
     $branch =~ s/^\* //;
     $git->{branch} = $branch;
 
+    if ($ENV{GITHUB_REF} && $ENV{GITHUB_REF} =~ m![^/]+/[^/]+/(.+)$!) {
+        $git->{branch} = $1;
+    }
+
     return $git;
 }
 
