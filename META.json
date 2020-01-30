@@ -34,6 +34,8 @@
       "develop" : {
          "requires" : {
             "CPAN::Uploader" : "0",
+            "Minilla" : "0",
+            "Pod::Markdown::Github" : "0",
             "Test::CPAN::Meta" : "0",
             "Test::MinimumVersion::Fast" : "0.04",
             "Test::PAUSE::Permissions" : "0.07",
@@ -73,7 +75,7 @@
          "web" : "https://github.com/kan/coveralls-perl"
       }
    },
-   "version" : "0.12",
+   "version" : "0.13",
    "x_contributors" : [
       "David Steinbrunner <dsteinbrunner@pobox.com>",
       "Graham Knop <haarg@haarg.org>",

@@ -2,6 +2,9 @@ Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
 
+0.13 2020-01-30T08:52:29Z
+    - Support for getting branch name on Github Actions (thanks bayashi)
+
 0.12 2020-01-29T07:33:05Z
     - support Github Actions (thanks bayashi)
 

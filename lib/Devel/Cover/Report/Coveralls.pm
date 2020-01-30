@@ -2,7 +2,7 @@ package Devel::Cover::Report::Coveralls;
 use strict;
 use warnings;
 use 5.008005;
-our $VERSION = "0.12";
+our $VERSION = "0.13";
 
 our $CONFIG_FILE = '.coveralls.yml';
 our $API_ENDPOINT = 'https://coveralls.io/api/v1/jobs';
