@@ -93,7 +93,7 @@ sub get_config {
         $json->{service_name} = 'jenkins';
         $json->{service_number} = $ENV{BUILD_NUM};
     } elsif ($ENV{GITHUB_ACTIONS} && $ENV{GITHUB_SHA}) {
-        $json->{service_name}   = 'github-actions';
+        $json->{service_name}   = 'github';
         $json->{service_number} = substr($ENV{GITHUB_SHA}, 0, 9);
     } else {
         $is_travis = 0;
