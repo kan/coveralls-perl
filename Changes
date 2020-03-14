@@ -1,6 +1,7 @@
 Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
+    - Fix Github Actions service_name "github-actions" to "github" (thanks Songmu)
 
 0.13 2020-01-30T08:52:29Z
     - Support for getting branch name on Github Actions (thanks bayashi)
