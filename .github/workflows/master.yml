@@ -31,7 +31,6 @@ jobs:
         run: |
             curl -sL https://git.io/cpm | perl - install -g --with-recommends --with-test --with-develop --with-configure --show-build-log-on-failure
             curl -sL https://git.io/cpm | perl - install -g --show-build-log-on-failure Devel::Cover::Report::Coveralls
-            cover -test
       - name: Run build
         run: |
             perl Build.PL

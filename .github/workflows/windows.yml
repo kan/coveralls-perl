@@ -25,4 +25,4 @@ jobs:
       - name: Run build
         run: perl Build.PL
       - name: Run test
-        run: ./Build test
+        run: ./Build build && ./Build test
