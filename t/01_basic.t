@@ -19,8 +19,9 @@ subtest 'get_config' => sub {
 };
 
 subtest 'get_config local' => sub {
-    local $ENV{TRAVIS}     = undef; # reset on travis
-    local $ENV{GITHUB_SHA} = '123456789';
+    local $ENV{TRAVIS}         = undef; # reset on travis
+    local $ENV{GITHUB_ACTIONS} = 1;
+    local $ENV{GITHUB_SHA}     = '123456789';
 
     my $config = {
         service_name => 'github',
