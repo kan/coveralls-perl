@@ -1,9 +1,0 @@
-dist: trusty
-sudo: false
-language: perl
-perl:
-  - 5.16
-  - 5.14
-before_install:
-  - cpanm -n Devel::Cover::Report::Coveralls
-script: perl Build.PL && ./Build build && cover -test -report coveralls
