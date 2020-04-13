@@ -23,7 +23,7 @@ subtest 'get_config github' => sub {
 
     my $got = Devel::Cover::Report::Coveralls::get_config();
 
-    is $got->{service_name}, 'github', 'config service_name';
+    is $got->{service_name}, 'github-actions', 'config service_name';
     is $got->{service_number}, '123456789', 'config service_number';
 };
 
