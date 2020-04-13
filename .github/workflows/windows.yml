@@ -24,7 +24,5 @@ jobs:
         run: curl -sL https://git.io/cpm | perl - install -g --with-recommends --with-test --with-configure --with-develop --show-build-log-on-failure
       - name: Run build
         run: perl Build.PL
-      - name: Build manifest
-        run: ./Build manifest
       - name: Run test
-        run: ./Build test
+        run: ./Build build && ./Build test
