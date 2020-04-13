@@ -18,7 +18,7 @@ subtest 'get_config' => sub {
     is_deeply Devel::Cover::Report::Coveralls::get_config(), $config, 'config';
 };
 
-subtest 'get_config local' => sub {
+subtest 'get_config github' => sub {
     local $ENV{TRAVIS}               = undef; # reset on travis
     local $ENV{COVERALLS_REPO_TOKEN} = 'xxxxxx';
     local $ENV{GITHUB_ACTIONS}       = 1;
@@ -27,6 +27,20 @@ subtest 'get_config local' => sub {
     my $config = {
         service_name => 'github',
         service_number => '123456789',
+    };
+
+    is_deeply Devel::Cover::Report::Coveralls::get_config(), $config, 'config';
+};
+
+subtest 'get_config local' => sub {
+    local $ENV{TRAVIS}               = undef; # reset on travis
+    local $ENV{GITHUB_ACTIONS}       = undef; # reset on github
+    local $ENV{COVERALLS_REPO_TOKEN} = 'xxxxxx';
+
+    my $config = {
+        repo_token => 'xxxxx',
+        service_name => 'coveralls-perl',
+        service_event_type => 'manual',
     };
 
     is_deeply Devel::Cover::Report::Coveralls::get_config(), $config, 'config';
