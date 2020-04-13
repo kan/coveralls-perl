@@ -38,6 +38,5 @@ jobs:
       - name: Run Cover
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-        run: |
-            cover -test -report coveralls
+        run: cover -test -report coveralls
         if: matrix.perl-version == 'latest'
