@@ -10,41 +10,31 @@ subtest 'get_config' => sub {
     local $ENV{TRAVIS}        = 'true';
     local $ENV{TRAVIS_JOB_ID} = 100000;
 
-    my $config = {
-        service_job_id => 100000,
-        service_name => 'travis-ci',
-    };
+    my $got = Devel::Cover::Report::Coveralls::get_config();
 
-    is_deeply Devel::Cover::Report::Coveralls::get_config(), $config, 'config';
+    is $got->{service_job_id}, 100000, 'config service_job_id';
+    is $got->{service_name}, 'travis-ci', 'config service_name';
 };
 
 subtest 'get_config github' => sub {
-    local $ENV{TRAVIS}               = undef; # reset on travis
-    local $ENV{COVERALLS_REPO_TOKEN} = 'xxxxx';
-    local $ENV{GITHUB_ACTIONS}       = 1;
-    local $ENV{GITHUB_SHA}           = '123456789';
+    local $ENV{TRAVIS}          = undef; # reset on travis
+    local $ENV{GITHUB_ACTIONS}  = 1;
+    local $ENV{GITHUB_SHA}      = '123456789';
 
-    my $config = {
-        repo_token => 'xxxxx',
-        service_name => 'github',
-        service_number => '123456789',
-    };
+    my $got = Devel::Cover::Report::Coveralls::get_config();
 
-    is_deeply Devel::Cover::Report::Coveralls::get_config(), $config, 'config';
+    is $got->{service_name}, 'github', 'config service_name';
+    is $got->{service_number}, '123456789', 'config service_number';
 };
 
 subtest 'get_config local' => sub {
-    local $ENV{TRAVIS}               = undef; # reset on travis
-    local $ENV{GITHUB_ACTIONS}       = undef; # reset on github
-    local $ENV{COVERALLS_REPO_TOKEN} = 'xxxxx';
+    local $ENV{TRAVIS}         = undef; # reset on travis
+    local $ENV{GITHUB_ACTIONS} = undef; # reset on github
 
-    my $config = {
-        repo_token => 'xxxxx',
-        service_name => 'coveralls-perl',
-        service_event_type => 'manual',
-    };
+    my $got = Devel::Cover::Report::Coveralls::get_config();
 
-    is_deeply Devel::Cover::Report::Coveralls::get_config(), $config, 'config';
+    is $got->{service_name}, 'coveralls-perl', 'config service_name';
+    is $got->{service_event_type}, 'manual', 'config service_event_type';
 };
 
 subtest 'get_source' => sub {
