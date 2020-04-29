@@ -1,6 +1,12 @@
 Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
+
+0.15 2020-04-29T02:21:23Z
+    - support Azure-Pipeline (thanks jacquesg)
+    - setting and code fix (thanks bayashi)
+
+0.14 2020-03-13T11:18:43Z
     - Fix Github Actions service_name "github-actions" to "github" (thanks Songmu)
 
 0.13 2020-01-30T08:52:29Z
