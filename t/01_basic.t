@@ -27,6 +27,23 @@ subtest 'get_config github' => sub {
     is $got->{service_number}, '123456789', 'config service_number';
 };
 
+subtest 'get_config azure' => sub {
+    local $ENV{TRAVIS}         = undef; # reset on travis
+    local $ENV{GITHUB_ACTIONS} = undef; # reset on github
+    local $ENV{SYSTEM_TEAMFOUNDATIONSERVERURI} = 1;
+    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
+    local $ENV{BUILD_SOURCEBRANCHNAME} = 'feature';
+    local $ENV{BUILD_BUILDID} = '123456789';
+
+    my $got = Devel::Cover::Report::Coveralls::get_config();
+
+    is $got->{service_name}, 'azure-pipelines', 'config service_name';
+    is $got->{service_number}, '123456789', 'config service_number';
+
+    $got = Devel::Cover::Report::Coveralls::get_git_info();
+    is $got->{branch}, 'feature', 'git branch';
+};
+
 subtest 'get_config local' => sub {
     local $ENV{TRAVIS}         = undef; # reset on travis
     local $ENV{GITHUB_ACTIONS} = undef; # reset on github
