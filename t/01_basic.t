@@ -7,6 +7,7 @@ use FindBin;
 use Devel::Cover::Report::Coveralls;
 
 subtest 'get_config' => sub {
+    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
     local $ENV{TRAVIS}        = 'true';
     local $ENV{TRAVIS_JOB_ID} = 100000;
 
@@ -18,6 +19,7 @@ subtest 'get_config' => sub {
 
 subtest 'get_config github' => sub {
     local $ENV{TRAVIS}          = undef; # reset on travis
+    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
     local $ENV{GITHUB_ACTIONS}  = 1;
     local $ENV{GITHUB_SHA}      = '123456789';
 
