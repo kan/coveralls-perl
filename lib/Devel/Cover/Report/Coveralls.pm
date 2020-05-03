@@ -63,6 +63,8 @@ sub get_git_info {
 
     if ($ENV{GITHUB_REF} && $ENV{GITHUB_REF} =~ m![^/]+/[^/]+/(.+)$!) {
         $git->{branch} = $1;
+    } elsif ($ENV{BUILD_SOURCEBRANCHNAME}) {
+        $git->{branch} = $ENV{BUILD_SOURCEBRANCHNAME};
     }
 
     return $git;
@@ -93,8 +95,11 @@ sub get_config {
         $json->{service_name} = 'jenkins';
         $json->{service_number} = $ENV{BUILD_NUM};
     } elsif ($ENV{GITHUB_ACTIONS} && $ENV{GITHUB_SHA}) {
-        $json->{service_name}   = 'github';
+        $json->{service_name}   = 'github-actions';
         $json->{service_number} = substr($ENV{GITHUB_SHA}, 0, 9);
+    } elsif ($ENV{SYSTEM_TEAMFOUNDATIONSERVERURI}) {
+        $json->{service_name}   = 'azure-pipelines';
+        $json->{service_number} = $ENV{BUILD_BUILDID};
     } else {
         $is_travis = 0;
         $json->{service_name} = $config->{service_name} || $SERVICE_NAME;
@@ -102,6 +107,10 @@ sub get_config {
     }
 
     die "required repo_token in $CONFIG_FILE, or launch via Travis" if !$json->{repo_token} && !$is_travis;
+
+    if (exists $ENV{COVERALLS_PERL_SERVICE_NAME} && $ENV{COVERALLS_PERL_SERVICE_NAME}) {
+        $json->{service_name} = $ENV{COVERALLS_PERL_SERVICE_NAME};
+    }
 
     return $json;
 }

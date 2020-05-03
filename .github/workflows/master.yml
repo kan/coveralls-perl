@@ -40,6 +40,6 @@ jobs:
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         run: |
-            curl -sL https://git.io/cpm | perl - install -g --show-build-log-on-failure Devel::Cover::Report::Coveralls
+            curl -sL https://git.io/cpm | perl - install -g --show-build-log-on-failure Devel::Cover::Report::Coveralls@0.13
             cover -test -report coveralls
         if: matrix.perl-version == 'latest'
