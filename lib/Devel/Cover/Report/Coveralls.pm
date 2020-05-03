@@ -63,6 +63,8 @@ sub get_git_info {
 
     if ($ENV{GITHUB_REF} && $ENV{GITHUB_REF} =~ m![^/]+/[^/]+/(.+)$!) {
         $git->{branch} = $1;
+    } elsif ($ENV{BUILD_SOURCEBRANCHNAME}) {
+        $git->{branch} = $ENV{BUILD_SOURCEBRANCHNAME};
     }
 
     return $git;
@@ -95,6 +97,9 @@ sub get_config {
     } elsif ($ENV{GITHUB_ACTIONS} && $ENV{GITHUB_SHA}) {
         $json->{service_name}   = 'github-actions';
         $json->{service_number} = substr($ENV{GITHUB_SHA}, 0, 9);
+    } elsif ($ENV{SYSTEM_TEAMFOUNDATIONSERVERURI}) {
+        $json->{service_name}   = 'azure-pipelines';
+        $json->{service_number} = $ENV{BUILD_BUILDID};
     } else {
         $is_travis = 0;
         $json->{service_name} = $config->{service_name} || $SERVICE_NAME;
