@@ -32,6 +32,7 @@ subtest 'get_config github' => sub {
 subtest 'get_config azure' => sub {
     local $ENV{TRAVIS}         = undef; # reset on travis
     local $ENV{GITHUB_ACTIONS} = undef; # reset on github
+    local $ENV{GITHUB_REF}     = undef; # reset on github
     local $ENV{SYSTEM_TEAMFOUNDATIONSERVERURI} = 1;
     local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
     local $ENV{BUILD_SOURCEBRANCHNAME} = 'feature';
@@ -49,6 +50,7 @@ subtest 'get_config azure' => sub {
 subtest 'get_config local' => sub {
     local $ENV{TRAVIS}         = undef; # reset on travis
     local $ENV{GITHUB_ACTIONS} = undef; # reset on github
+    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
 
     my $got = Devel::Cover::Report::Coveralls::get_config();
 
