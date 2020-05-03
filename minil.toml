@@ -1,2 +1,2 @@
 name = "Devel-Cover-Report-Coveralls"
-badges = ['travis']
+badges = ['github-actions/master', 'github-actions/windows', 'github-actions/mac', 'travis']

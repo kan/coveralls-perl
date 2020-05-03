@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/kan/coveralls-perl.svg?branch=master)](https://travis-ci.org/kan/coveralls-perl)
+[![Actions Status](https://github.com/kan/coveralls-perl/workflows/master/badge.svg)](https://github.com/kan/coveralls-perl/actions) [![Actions Status](https://github.com/kan/coveralls-perl/workflows/windows/badge.svg)](https://github.com/kan/coveralls-perl/actions) [![Actions Status](https://github.com/kan/coveralls-perl/workflows/mac/badge.svg)](https://github.com/kan/coveralls-perl/actions) [![Build Status](https://travis-ci.org/kan/coveralls-perl.svg?branch=master)](https://travis-ci.org/kan/coveralls-perl)
 # NAME
 
 Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
