@@ -93,7 +93,7 @@ sub get_config {
         $json->{service_name} = 'jenkins';
         $json->{service_number} = $ENV{BUILD_NUM};
     } elsif ($ENV{GITHUB_ACTIONS} && $ENV{GITHUB_SHA}) {
-        $json->{service_name}   = 'github';
+        $json->{service_name}   = 'github-actions';
         $json->{service_number} = substr($ENV{GITHUB_SHA}, 0, 9);
     } else {
         $is_travis = 0;
@@ -102,6 +102,10 @@ sub get_config {
     }
 
     die "required repo_token in $CONFIG_FILE, or launch via Travis" if !$json->{repo_token} && !$is_travis;
+
+    if (exists $ENV{COVERALLS_PERL_SERVICE_NAME} && $ENV{COVERALLS_PERL_SERVICE_NAME}) {
+        $json->{service_name} = $ENV{COVERALLS_PERL_SERVICE_NAME};
+    }
 
     return $json;
 }
