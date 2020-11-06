@@ -175,6 +175,59 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 =head1 USAGE
 
+=head2 GitHub Actions
+
+1. Add your repo to coveralls. L<https://coveralls.io/repos/new>
+
+2. Add settings to one of your GitHub workflows. Here assuming you're
+calling it F<.github/workflows/ci.yml>:
+
+  jobs:
+    ubuntu:
+      runs-on: ${{ matrix.os }}
+      strategy:
+        fail-fast: false
+        matrix:
+          os: [ubuntu-latest]
+          perl-version: ['5.10', '5.14', '5.20']
+          include:
+            - perl-version: '5.30'
+              os: ubuntu-latest
+              release-test: true
+              coverage: true
+      container: perl:${{ matrix.perl-version }}
+      steps:
+        - uses: actions/checkout@v2
+        # do other stuff like installing external deps here
+        - run: cpanm -n --installdeps .
+        - run: perl -V
+        - name: Run release tests # before others as may install useful stuff
+          if: ${{ matrix.release-test }}
+          env:
+            RELEASE_TESTING: 1
+          run: |
+            cpanm -n --installdeps --with-develop .
+            prove -lr xt
+        - name: Run tests (no coverage)
+          if: ${{ !matrix.coverage }}
+          run: prove -l t
+        - name: Run tests (with coverage)
+          if: ${{ matrix.coverage }}
+          env:
+            COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+          run: |
+            cpanm -n Devel::Cover::Report::Coveralls
+            cover -test -report Coveralls
+
+3. Add a secret called C<COVERALLS_TOKEN> to your repo
+(Settings / Secrets). Copy the value from the project's page on
+L<https://coveralls.io/>. It will then be accessible as
+C<${{ secrets.COVERALLS_TOKEN }}> shown above.
+
+4. Push new change to GitHub
+
+5. Coveralls should update your project page
+
 =head2 Travis CI
 
 1. Add your repo to coveralls. L<https://coveralls.io/repos/new>
