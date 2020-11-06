@@ -177,9 +177,9 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 =head2 Travis CI
 
-1. Add your repo to coveralls. https://coveralls.io/repos/new
+1. Add your repo to coveralls. L<https://coveralls.io/repos/new>
 
-2. Add setting to .travis.yaml (before_install and script section)
+2. Add setting to F<.travis.yaml> (C<before_install> and C<script> section)
 
     language: perl
     perl:
@@ -204,7 +204,7 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 1. Get repo_token from your project page in coveralls.
 
-2. Write .coveralls.yml (don't add this to public repo)
+2. Write F<.coveralls.yml> (don't add this to public repo)
 
     repo_token: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
