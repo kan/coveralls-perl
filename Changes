@@ -1,6 +1,7 @@
 Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
+    - support different COVERALLS_ENDPOINT
 
 0.15 2020-04-29T02:21:23Z
     - support Azure-Pipeline (thanks jacquesg)

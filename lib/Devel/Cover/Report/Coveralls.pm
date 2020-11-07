@@ -5,7 +5,8 @@ use 5.008005;
 our $VERSION = "0.15";
 
 our $CONFIG_FILE = '.coveralls.yml';
-our $API_ENDPOINT = 'https://coveralls.io/api/v1/jobs';
+our $API_ENDPOINT_STEM = '/api/v1/jobs';
+our $API_ENDPOINT = 'https://coveralls.io';
 our $SERVICE_NAME = 'coveralls-perl';
 
 use Devel::Cover::DB;
@@ -81,6 +82,7 @@ sub get_config {
     $json->{repo_token} = $ENV{COVERALLS_REPO_TOKEN} if $ENV{COVERALLS_REPO_TOKEN};
 
     my $is_travis;
+    my $endpoint = ($ENV{COVERALLS_ENDPOINT} || $API_ENDPOINT) . $API_ENDPOINT_STEM;
     if ($ENV{TRAVIS}) {
         $is_travis = 1;
         $json->{service_name} = $config->{service_name} || 'travis-ci';
@@ -112,7 +114,7 @@ sub get_config {
         $json->{service_name} = $ENV{COVERALLS_PERL_SERVICE_NAME};
     }
 
-    return $json;
+    return ($json, $endpoint);
 }
 
 sub _parse_line ($) {
@@ -145,12 +147,12 @@ sub report {
         push @sfs, get_source( $file, _parse_line $c );
     }
 
-    my $json = get_config();
+    my ($json, $endpoint) = get_config();
     $json->{git} = eval { get_git_info() } || {};
     $json->{source_files} = \@sfs;
 
     my $response = HTTP::Tiny->new( verify_SSL => 1 )
-        ->post_form( $API_ENDPOINT, { json => encode_json $json } );
+        ->post_form( $endpoint, { json => encode_json $json } );
 
     my $res = eval { decode_json $response->{content} };
 
@@ -266,6 +268,22 @@ C<${{ secrets.COVERALLS_TOKEN }}> shown above.
 =head1 DESCRIPTION
 
 L<https://coveralls.io/> is service to publish your coverage stats online with a lot of nice features. This module provides seamless integration with L<Devel::Cover> in your perl projects.
+
+=head1 ENVIRONMENT
+
+Set these environment variables to control the behaviour. Various other
+variables, set by particular CI environments, will be interpreted silently
+and correctly.
+
+=head2 COVERALLS_REPO_TOKEN
+
+The Coveralls authentication token for this particular repo.
+
+=head2 COVERALLS_ENDPOINT
+
+If you have an enterprise installation, set this to change from the
+default of C<https://coveralls.io>. The rest of the URL (C</api>, etc)
+won't change, and will be correct.
 
 =head1 SEE ALSO
 
