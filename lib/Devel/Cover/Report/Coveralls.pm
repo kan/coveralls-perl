@@ -97,6 +97,25 @@ sub get_config {
     } elsif ($ENV{JENKINS_URL}) {
         $json->{service_name} = 'jenkins';
         $json->{service_number} = $ENV{BUILD_NUM};
+    } elsif ($ENV{GITHUB_TOKEN}) {
+        # from info as at 2020-11-07
+        # https://github.com/coverallsapp/github-action/blob/master/src/run.ts
+        # https://github.com/nickmerwin/node-coveralls/blob/master/lib/getOptions.js
+        # we use GITHUB_TOKEN just to differentiate from still-working setup
+        # in next option, but which requires a secret setting up
+        $json->{service_name} = 'github';
+        $json->{repo_token} = $ENV{GITHUB_TOKEN};
+        $json->{service_job_id} = $ENV{GITHUB_RUN_ID};
+        if (($ENV{GITHUB_EVENT_NAME}||'') eq 'pull_request') {
+            if (open my $fh, '<:raw', $ENV{GITHUB_EVENT_PATH}) {
+                local $/;
+                my $text = <$fh>;
+                my $pr = decode_json $text;
+                if (my ($match) = ($pr->{number}||'') =~ /(\d+)$/) {
+                    $json->{service_pull_request} = $match;
+                }
+            }
+        }
     } elsif ($ENV{GITHUB_ACTIONS} && $ENV{GITHUB_SHA}) {
         $json->{service_name}   = 'github-actions';
         $json->{service_number} = substr($ENV{GITHUB_SHA}, 0, 9);
@@ -217,19 +236,14 @@ calling it F<.github/workflows/ci.yml>:
         - name: Run tests (with coverage)
           if: ${{ matrix.coverage }}
           env:
-            COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           run: |
             cpanm -n Devel::Cover::Report::Coveralls
             cover -test -report Coveralls
 
-3. Add a secret called C<COVERALLS_TOKEN> to your repo
-(Settings / Secrets). Copy the value from the project's page on
-L<https://coveralls.io/>. It will then be accessible as
-C<${{ secrets.COVERALLS_TOKEN }}> shown above.
+3. Push new change to GitHub
 
-4. Push new change to GitHub
-
-5. Coveralls should update your project page
+4. Coveralls should update your project page
 
 =head2 Travis CI
 
