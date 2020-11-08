@@ -19,15 +19,17 @@ subtest 'get_config' => sub {
     is $endpoint, $normal_endpoint;
 };
 
-subtest 'get_config diff endpoint' => sub {
+subtest 'get_config extra env' => sub {
     local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
     local $ENV{TRAVIS}        = 'true';
     local $ENV{TRAVIS_JOB_ID} = 100000;
     my $diff_endpoint = 'http://localhost';
     local $ENV{COVERALLS_ENDPOINT} = $diff_endpoint;
+    local $ENV{COVERALLS_FLAG_NAME} = 'Unit';
     my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
     is $got->{service_job_id}, 100000, 'config service_job_id';
     is $got->{service_name}, 'travis-ci', 'config service_name';
+    is $got->{flag_name}, 'Unit', 'config flag_name';
     is $endpoint, $diff_endpoint . $endpoint_stem, 'new endpoint';
 };
 

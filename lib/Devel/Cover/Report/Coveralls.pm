@@ -80,6 +80,7 @@ sub get_config {
     my $json = {};
     $json->{repo_token} = $config->{repo_token} if $config->{repo_token};
     $json->{repo_token} = $ENV{COVERALLS_REPO_TOKEN} if $ENV{COVERALLS_REPO_TOKEN};
+    $json->{flag_name} = $ENV{COVERALLS_FLAG_NAME} if $ENV{COVERALLS_FLAG_NAME};
 
     my $is_travis;
     my $endpoint = ($ENV{COVERALLS_ENDPOINT} || $API_ENDPOINT) . $API_ENDPOINT_STEM;
@@ -284,6 +285,10 @@ The Coveralls authentication token for this particular repo.
 If you have an enterprise installation, set this to change from the
 default of C<https://coveralls.io>. The rest of the URL (C</api>, etc)
 won't change, and will be correct.
+
+=head2 COVERALLS_FLAG_NAME
+
+Describe the particular tests being done, e.g. C<Unit> or C<Functional>.
 
 =head1 SEE ALSO
 
