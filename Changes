@@ -1,8 +1,10 @@
 Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
-    - support COVERALLS_FLAG_NAME, different COVERALLS_ENDPOINT
-    - support GitHub actions in more native way without special secret
+
+0.20 2020-11-08T09:23:58Z
+    - support COVERALLS_FLAG_NAME, different COVERALLS_ENDPOINT (thanks mohawk2)
+    - support GitHub actions in more native way without special secret (thanks mohawk2)
 
 0.15 2020-04-29T02:21:23Z
     - support Azure-Pipeline (thanks jacquesg)

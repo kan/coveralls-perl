@@ -5,11 +5,59 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 # USAGE
 
+## GitHub Actions
+
+1\. Add your repo to coveralls. [https://coveralls.io/repos/new](https://coveralls.io/repos/new)
+
+2\. Add settings to one of your GitHub workflows. Here assuming you're
+calling it `.github/workflows/ci.yml`:
+
+    jobs:
+      ubuntu:
+        runs-on: ${{ matrix.os }}
+        strategy:
+          fail-fast: false
+          matrix:
+            os: [ubuntu-latest]
+            perl-version: ['5.10', '5.14', '5.20']
+            include:
+              - perl-version: '5.30'
+                os: ubuntu-latest
+                release-test: true
+                coverage: true
+        container: perl:${{ matrix.perl-version }}
+        steps:
+          - uses: actions/checkout@v2
+          # do other stuff like installing external deps here
+          - run: cpanm -n --installdeps .
+          - run: perl -V
+          - name: Run release tests # before others as may install useful stuff
+            if: ${{ matrix.release-test }}
+            env:
+              RELEASE_TESTING: 1
+            run: |
+              cpanm -n --installdeps --with-develop .
+              prove -lr xt
+          - name: Run tests (no coverage)
+            if: ${{ !matrix.coverage }}
+            run: prove -l t
+          - name: Run tests (with coverage)
+            if: ${{ matrix.coverage }}
+            env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            run: |
+              cpanm -n Devel::Cover::Report::Coveralls
+              cover -test -report Coveralls
+
+3\. Push new change to GitHub
+
+4\. Coveralls should update your project page
+
 ## Travis CI
 
-1\. Add your repo to coveralls. https://coveralls.io/repos/new
+1\. Add your repo to coveralls. [https://coveralls.io/repos/new](https://coveralls.io/repos/new)
 
-2\. Add setting to .travis.yaml (before\_install and script section)
+2\. Add setting to `.travis.yaml` (`before_install` and `script` section)
 
     language: perl
     perl:
@@ -32,7 +80,7 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 1\. Get repo\_token from your project page in coveralls.
 
-2\. Write .coveralls.yml (don't add this to public repo)
+2\. Write `.coveralls.yml` (don't add this to public repo)
 
     repo_token: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
@@ -41,6 +89,26 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 # DESCRIPTION
 
 [https://coveralls.io/](https://coveralls.io/) is service to publish your coverage stats online with a lot of nice features. This module provides seamless integration with [Devel::Cover](https://metacpan.org/pod/Devel%3A%3ACover) in your perl projects.
+
+# ENVIRONMENT
+
+Set these environment variables to control the behaviour. Various other
+variables, set by particular CI environments, will be interpreted silently
+and correctly.
+
+## COVERALLS\_REPO\_TOKEN
+
+The Coveralls authentication token for this particular repo.
+
+## COVERALLS\_ENDPOINT
+
+If you have an enterprise installation, set this to change from the
+default of `https://coveralls.io`. The rest of the URL (`/api`, etc)
+won't change, and will be correct.
+
+## COVERALLS\_FLAG\_NAME
+
+Describe the particular tests being done, e.g. `Unit` or `Functional`.
 
 # SEE ALSO
 
