@@ -28,18 +28,16 @@ jobs:
       - name: perl -V
         run: perl -V
       - name: Install dependencies
-        run: curl -sL https://git.io/cpm | perl - install -g --with-recommends --with-test --with-develop --with-configure --show-build-log-on-failure
+        run: curl -sL https://git.io/cpm | perl - install -g --with-recommends --with-test --with-configure --show-build-log-on-failure
       - name: Run build
-        env:
-          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         run: |
             perl Build.PL
             ./Build build
             ./Build test
       - name: Run Cover
         env:
-          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-            curl -sL https://git.io/cpm | perl - install -g --show-build-log-on-failure Devel::Cover::Report::Coveralls@0.13
+            ./Build install
             cover -test -report coveralls
         if: matrix.perl-version == 'latest'

@@ -4,6 +4,7 @@ on test => sub {
 };
 
 on configure => sub {
+    requires 'Module::Build::Tiny';
 };
 
 on 'develop' => sub {

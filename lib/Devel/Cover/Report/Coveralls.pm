@@ -5,7 +5,8 @@ use 5.008005;
 our $VERSION = "0.15";
 
 our $CONFIG_FILE = '.coveralls.yml';
-our $API_ENDPOINT = 'https://coveralls.io/api/v1/jobs';
+our $API_ENDPOINT_STEM = '/api/v1/jobs';
+our $API_ENDPOINT = 'https://coveralls.io';
 our $SERVICE_NAME = 'coveralls-perl';
 
 use Devel::Cover::DB;
@@ -79,8 +80,10 @@ sub get_config {
     my $json = {};
     $json->{repo_token} = $config->{repo_token} if $config->{repo_token};
     $json->{repo_token} = $ENV{COVERALLS_REPO_TOKEN} if $ENV{COVERALLS_REPO_TOKEN};
+    $json->{flag_name} = $ENV{COVERALLS_FLAG_NAME} if $ENV{COVERALLS_FLAG_NAME};
 
     my $is_travis;
+    my $endpoint = ($ENV{COVERALLS_ENDPOINT} || $API_ENDPOINT) . $API_ENDPOINT_STEM;
     if ($ENV{TRAVIS}) {
         $is_travis = 1;
         $json->{service_name} = $config->{service_name} || 'travis-ci';
@@ -94,6 +97,25 @@ sub get_config {
     } elsif ($ENV{JENKINS_URL}) {
         $json->{service_name} = 'jenkins';
         $json->{service_number} = $ENV{BUILD_NUM};
+    } elsif ($ENV{GITHUB_TOKEN}) {
+        # from info as at 2020-11-07
+        # https://github.com/coverallsapp/github-action/blob/master/src/run.ts
+        # https://github.com/nickmerwin/node-coveralls/blob/master/lib/getOptions.js
+        # we use GITHUB_TOKEN just to differentiate from still-working setup
+        # in next option, but which requires a secret setting up
+        $json->{service_name} = 'github';
+        $json->{repo_token} = $ENV{GITHUB_TOKEN};
+        $json->{service_job_id} = $ENV{GITHUB_RUN_ID};
+        if (($ENV{GITHUB_EVENT_NAME}||'') eq 'pull_request') {
+            if (open my $fh, '<:raw', $ENV{GITHUB_EVENT_PATH}) {
+                local $/;
+                my $text = <$fh>;
+                my $pr = decode_json $text;
+                if (my ($match) = ($pr->{number}||'') =~ /(\d+)$/) {
+                    $json->{service_pull_request} = $match;
+                }
+            }
+        }
     } elsif ($ENV{GITHUB_ACTIONS} && $ENV{GITHUB_SHA}) {
         $json->{service_name}   = 'github-actions';
         $json->{service_number} = substr($ENV{GITHUB_SHA}, 0, 9);
@@ -112,7 +134,7 @@ sub get_config {
         $json->{service_name} = $ENV{COVERALLS_PERL_SERVICE_NAME};
     }
 
-    return $json;
+    return ($json, $endpoint);
 }
 
 sub _parse_line ($) {
@@ -145,12 +167,12 @@ sub report {
         push @sfs, get_source( $file, _parse_line $c );
     }
 
-    my $json = get_config();
+    my ($json, $endpoint) = get_config();
     $json->{git} = eval { get_git_info() } || {};
     $json->{source_files} = \@sfs;
 
     my $response = HTTP::Tiny->new( verify_SSL => 1 )
-        ->post_form( $API_ENDPOINT, { json => encode_json $json } );
+        ->post_form( $endpoint, { json => encode_json $json } );
 
     my $res = eval { decode_json $response->{content} };
 
@@ -175,11 +197,59 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 =head1 USAGE
 
+=head2 GitHub Actions
+
+1. Add your repo to coveralls. L<https://coveralls.io/repos/new>
+
+2. Add settings to one of your GitHub workflows. Here assuming you're
+calling it F<.github/workflows/ci.yml>:
+
+  jobs:
+    ubuntu:
+      runs-on: ${{ matrix.os }}
+      strategy:
+        fail-fast: false
+        matrix:
+          os: [ubuntu-latest]
+          perl-version: ['5.10', '5.14', '5.20']
+          include:
+            - perl-version: '5.30'
+              os: ubuntu-latest
+              release-test: true
+              coverage: true
+      container: perl:${{ matrix.perl-version }}
+      steps:
+        - uses: actions/checkout@v2
+        # do other stuff like installing external deps here
+        - run: cpanm -n --installdeps .
+        - run: perl -V
+        - name: Run release tests # before others as may install useful stuff
+          if: ${{ matrix.release-test }}
+          env:
+            RELEASE_TESTING: 1
+          run: |
+            cpanm -n --installdeps --with-develop .
+            prove -lr xt
+        - name: Run tests (no coverage)
+          if: ${{ !matrix.coverage }}
+          run: prove -l t
+        - name: Run tests (with coverage)
+          if: ${{ matrix.coverage }}
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          run: |
+            cpanm -n Devel::Cover::Report::Coveralls
+            cover -test -report Coveralls
+
+3. Push new change to GitHub
+
+4. Coveralls should update your project page
+
 =head2 Travis CI
 
-1. Add your repo to coveralls. https://coveralls.io/repos/new
+1. Add your repo to coveralls. L<https://coveralls.io/repos/new>
 
-2. Add setting to .travis.yaml (before_install and script section)
+2. Add setting to F<.travis.yaml> (C<before_install> and C<script> section)
 
     language: perl
     perl:
@@ -204,7 +274,7 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 1. Get repo_token from your project page in coveralls.
 
-2. Write .coveralls.yml (don't add this to public repo)
+2. Write F<.coveralls.yml> (don't add this to public repo)
 
     repo_token: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
@@ -213,6 +283,26 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 =head1 DESCRIPTION
 
 L<https://coveralls.io/> is service to publish your coverage stats online with a lot of nice features. This module provides seamless integration with L<Devel::Cover> in your perl projects.
+
+=head1 ENVIRONMENT
+
+Set these environment variables to control the behaviour. Various other
+variables, set by particular CI environments, will be interpreted silently
+and correctly.
+
+=head2 COVERALLS_REPO_TOKEN
+
+The Coveralls authentication token for this particular repo.
+
+=head2 COVERALLS_ENDPOINT
+
+If you have an enterprise installation, set this to change from the
+default of C<https://coveralls.io>. The rest of the URL (C</api>, etc)
+won't change, and will be correct.
+
+=head2 COVERALLS_FLAG_NAME
+
+Describe the particular tests being done, e.g. C<Unit> or C<Functional>.
 
 =head1 SEE ALSO
 
