@@ -37,6 +37,7 @@ subtest 'get_config extra env' => sub {
 
 subtest 'get_config github' => sub {
     local $ENV{TRAVIS}          = undef; # reset on travis
+    local $ENV{DRONE}           = undef; # reset on drone
     local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
     local $ENV{GITHUB_ACTIONS}  = 1;
     local $ENV{GITHUB_SHA}      = '123456789';
@@ -49,6 +50,7 @@ subtest 'get_config github' => sub {
 
 subtest 'get_config github actions improved' => sub {
     local $ENV{TRAVIS} = undef;
+    local $ENV{DRONE} = undef; # reset on drone
     local $ENV{COVERALLS_REPO_TOKEN} = undef;
     local $ENV{GITHUB_TOKEN} = 'abcdef';
     local $ENV{GITHUB_RUN_ID} = '123456789';
@@ -61,6 +63,7 @@ subtest 'get_config azure' => sub {
     local $ENV{TRAVIS}         = undef; # reset on travis
     local $ENV{GITHUB_ACTIONS} = undef; # reset on github
     local $ENV{GITHUB_REF}     = undef; # reset on github
+    local $ENV{DRONE}           = undef; # reset on drone
     local $ENV{SYSTEM_TEAMFOUNDATIONSERVERURI} = 1;
     local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
     local $ENV{BUILD_SOURCEBRANCHNAME} = 'feature';
@@ -77,9 +80,25 @@ subtest 'get_config azure' => sub {
     is $got->{branch}, 'feature', 'git branch';
 };
 
+subtest 'get_config drone' => sub {
+    local $ENV{TRAVIS}         = undef; # reset on travis
+    local $ENV{GITHUB_ACTIONS} = undef; # reset on github
+    local $ENV{GITHUB_REF}     = undef; # reset on github
+    local $ENV{CIRCLECI}       = undef;
+    local $ENV{DRONE_BUILD_NUMBER} = '123';
+    local $ENV{DRONE} = "drone";
+
+    my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
+
+    is $got->{service_name}, 'drone', 'config service_name';
+    is $got->{service_number}, '123', 'config service_number';
+    is $endpoint, $normal_endpoint;
+};
+
 subtest 'get_config local' => sub {
     local $ENV{TRAVIS}         = undef; # reset on travis
     local $ENV{GITHUB_ACTIONS} = undef; # reset on github
+    local $ENV{DRONE}           = undef; # reset on drone
     local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
     local $ENV{GITHUB_TOKEN} = undef;
 
