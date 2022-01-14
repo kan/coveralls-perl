@@ -33,7 +33,7 @@ kind: pipeline
 name: Coveralls_webhook_done
 
 steps:
-  - name: send_done
+  - name: send_done2
     image: plugins/webhook
     environment:
       COVERALLS_REPO_TOKEN:
