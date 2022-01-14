@@ -13,7 +13,6 @@ use Devel::Cover::DB;
 use HTTP::Tiny;
 use JSON::PP;
 use YAML;
-use Data::Dumper;
 
 sub get_source {
     my ($file, $callback) = @_;
