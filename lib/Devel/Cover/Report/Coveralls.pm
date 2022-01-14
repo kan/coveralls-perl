@@ -318,8 +318,11 @@ Describe the particular tests being done, e.g. C<Unit> or C<Functional>.
 
 =head2 COVERALLS_PARALLEL
 
-Set this to to C<true> in case you run your tests in parallel environment. It is important to note though:
-If you use this feature, you must ensure that your ci solution calls the parallel webhook when everything is done.
+Set this to to C<true> in case you run your tests in a parallel environment. It is important to note though:
+If you use this feature, you must ensure that your CI solution calls the parallel webhook when everything is done. Moreover,
+regardless of what CI you use, you have to make sure that the C<build_number> is constant across the different jobs, otherwise
+coveralls is unable to group them together as one build.
+
 See L<https://docs.coveralls.io/parallel-build-webhook>
 
 =head1 SEE ALSO
