@@ -7,11 +7,11 @@ steps:
     environment:
       COVERALLS_REPO_TOKEN:
         from_secret: COVERALLS_REPO_TOKEN
-      COVERALLS_FLAG_NAME: test1
+      COVERALLS_FLAG_NAME: test00
     commands:
       - cpanm --quiet --installdeps --notest .
       - perl Build.PL build && ./Build
-      - PERL5LIB=blib/lib cover -test -silent -select ^t -report coveralls
+      - PERL5LIB=blib/lib cover -test -silent -select ^t/00 -report coveralls
 ---
 kind: pipeline
 name: Build_2
@@ -22,11 +22,11 @@ steps:
     environment:
       COVERALLS_REPO_TOKEN:
         from_secret: COVERALLS_REPO_TOKEN
-      COVERALLS_FLAG_NAME: test2
+      COVERALLS_FLAG_NAME: test01
     commands:
       - cpanm --quiet --installdeps --notest .
       - perl Build.PL build && ./Build
-      - PERL5LIB=blib/lib cover -test -silent -select ^t -report coveralls
+      - PERL5LIB=blib/lib cover -test -silent -select ^t/01 -report coveralls
 ---
 
 kind: pipeline
