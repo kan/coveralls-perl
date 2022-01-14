@@ -13,6 +13,7 @@ use Devel::Cover::DB;
 use HTTP::Tiny;
 use JSON::PP;
 use YAML;
+use Data::Dumper;
 
 sub get_source {
     my ($file, $callback) = @_;
@@ -180,6 +181,10 @@ sub report {
 
     my $res = eval { decode_json $response->{content} };
 
+
+    if(exists($json->{service_number})){
+        print "My build number: ". $json->{service_number} ."\n";
+    }
     if ($@) {
         print "error: " . $response->{content};
     } elsif ($response->{success}) {
@@ -188,7 +193,7 @@ sub report {
         print "error: " . $res->{message} . "\n";
     }
     if($ENV{COVERALLS_PARALLEL}){
-        print "parallel mode: True". "\n"
+        print "Parallel mode: True". "\n"
     }
 }
 
