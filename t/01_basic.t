@@ -98,6 +98,7 @@ subtest 'get_config drone' => sub {
 subtest 'get_config local' => sub {
     local $ENV{TRAVIS}         = undef; # reset on travis
     local $ENV{GITHUB_ACTIONS} = undef; # reset on github
+    local $ENV{DRONE}           = undef; # reset on drone
     local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
     local $ENV{GITHUB_TOKEN} = undef;
 
