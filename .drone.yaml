@@ -11,7 +11,8 @@ steps:
       COVERALLS_PARALLEL: true
     commands:
       - cpanm --quiet --installdeps --notest .
-      - perl Build.PL build && cover -test -report coveralls
+      - perl Build.PL build && ./Build
+      - PERL5LIB=blib/lib cover -test -silent -select ^t -report coveralls
 ---
 kind: pipeline
 name: Build_2
@@ -26,7 +27,8 @@ steps:
       COVERALLS_PARALLEL: true
     commands:
       - cpanm --quiet --installdeps --notest .
-      - perl Build.PL build && cover -test -report coveralls
+      - perl Build.PL build && ./Build
+      - PERL5LIB=blib/lib cover -test -silent -select ^t -report coveralls
 ---
 
 kind: pipeline

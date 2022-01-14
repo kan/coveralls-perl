@@ -81,7 +81,7 @@ sub get_config {
     $json->{repo_token} = $config->{repo_token} if $config->{repo_token};
     $json->{repo_token} = $ENV{COVERALLS_REPO_TOKEN} if $ENV{COVERALLS_REPO_TOKEN};
     $json->{flag_name} = $ENV{COVERALLS_FLAG_NAME} if $ENV{COVERALLS_FLAG_NAME};
-    $json->{parallel} = JSON::true if $ENV{COVERALLS_PARALLEL};
+    $json->{parallel} = \1 if $ENV{COVERALLS_PARALLEL};
 
     my $is_travis;
     my $endpoint = ($ENV{COVERALLS_ENDPOINT} || $API_ENDPOINT) . $API_ENDPOINT_STEM;
