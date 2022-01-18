@@ -4,7 +4,7 @@
       "Kan Fushihara <kan.fushihara@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v3.1.11, CPAN::Meta::Converter version 2.150010",
+   "generated_by" : "Minilla/v3.1.14, CPAN::Meta::Converter version 2.150010",
    "license" : [
       "perl_5"
    ],
@@ -75,7 +75,7 @@
          "web" : "https://github.com/kan/coveralls-perl"
       }
    },
-   "version" : "0.20",
+   "version" : "0.30",
    "x_contributors" : [
       "David Steinbrunner <dsteinbrunner@pobox.com>",
       "Ed J <mohawk2@users.noreply.github.com>",
@@ -83,6 +83,7 @@
       "Jacques Germishuys <jacquesg@striata.com>",
       "James Raspass <jraspass@gmail.com>",
       "Songmu <y.songmu@gmail.com>",
+      "Tobias Bossert <tobias.bossert@fastpath.ch>",
       "bayashi <bayashi@cpan.org>"
    ],
    "x_serialization_backend" : "JSON::PP version 4.02",

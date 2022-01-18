@@ -1,10 +1,12 @@
 version: '2'
 services:
     perl:
-        image: kanfushihara/perl-carton:5.30.1
+        image: ghcr.io/kan/docker-perl-cpm/perl-cpm:5.30.1
         volumes:
             - ./:/app
             - perl-local:/app/local
+        environment:
+            PERL5LIB: /app/local/lib/perl5
         tty: true
 volumes:
   perl-local:
