@@ -110,6 +110,15 @@ won't change, and will be correct.
 
 Describe the particular tests being done, e.g. `Unit` or `Functional`.
 
+## COVERALLS\_PARALLEL
+
+Set this to `true` in case you run your tests in a parallel environment. It is important to note though:
+If you use this feature, you must ensure that your CI solution calls the parallel webhook when everything is done. Moreover,
+regardless of what CI you use, you have to make sure that the `build_number` is constant across the different jobs, otherwise
+coveralls is unable to group them together as one build.
+
+See also [https://docs.coveralls.io/parallel-build-webhook](https://docs.coveralls.io/parallel-build-webhook>)
+
 # SEE ALSO
 
 [https://coveralls.io/](https://coveralls.io/)
