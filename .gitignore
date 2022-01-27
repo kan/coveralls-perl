@@ -31,4 +31,5 @@ _build_params
 /.build
 /Devel-Cover-Report-Coveralls-*
 !LICENSE
+.idea
 docker-compose-local.yml

@@ -90,18 +90,27 @@ sub get_config {
         $is_travis = 1;
         $json->{service_name} = $config->{service_name} || 'travis-ci';
         $json->{service_job_id} = $ENV{TRAVIS_JOB_ID};
+        if($ENV{TRAVIS_PULL_REQUEST} && $ENV{TRAVIS_PULL_REQUEST} ne 'false'){
+            $json->{service_pull_request} = $ENV{TRAVIS_PULL_REQUEST};
+        }
     } elsif ($ENV{CIRCLECI}) {
         $json->{service_name} = 'circleci';
-        $json->{service_number} = $ENV{CIRCLE_BUILD_NUM};
+        $json->{service_number} = $ENV{CIRCLE_WORKFLOW_ID};
+        # Unfortunately, circle-ci reports the url to PR..
     } elsif($ENV{DRONE}) {
         $json->{service_name} = 'drone';
         $json->{service_number} = $ENV{DRONE_BUILD_NUMBER};
+        $json->{service_pull_request} = $ENV{DRONE_PULL_REQUEST} if $ENV{DRONE_PULL_REQUEST};
     } elsif ($ENV{SEMAPHORE}) {
         $json->{service_name} = 'semaphore';
-        $json->{service_number} = $ENV{SEMAPHORE_BUILD_NUMBER};
+        $json->{service_number} = $ENV{SEMAPHORE_BUILD_NUMBER} if $ENV{SEMAPHORE_BUILD_NUMBER};
+        # Also support semaphore 2.x
+        $json->{service_number} = $ENV{SEMAPHORE_WORKFLOW_ID} if $ENV{SEMAPHORE_WORKFLOW_ID};
+        $json->{service_pull_request} = $ENV{SEMAPHORE_GIT_PR_NUMBER} if $ENV{SEMAPHORE_GIT_PR_NUMBER};
     } elsif ($ENV{JENKINS_URL}) {
         $json->{service_name} = 'jenkins';
         $json->{service_number} = $ENV{BUILD_NUM};
+        # In jenkins, the PR number is not available as an env var..
     } elsif ($ENV{GITHUB_TOKEN}) {
         # from info as at 2020-11-07
         # https://github.com/coverallsapp/github-action/blob/master/src/run.ts
@@ -182,6 +191,7 @@ sub report {
     my $res = eval { decode_json $response->{content} };
 
 
+    print("- Report::Coveralls --------\n");
     if(exists($json->{service_number})){
         print "My build number: ". $json->{service_number} ."\n";
     }
@@ -195,6 +205,7 @@ sub report {
     if($ENV{COVERALLS_PARALLEL}){
         print "Parallel mode: True". "\n"
     }
+    print("----------------------------\n");
 }
 
 
@@ -346,4 +357,3 @@ it under the same terms as Perl itself.
 =head1 AUTHOR
 
 Kan Fushihara E<lt>kan.fushihara@gmail.comE<gt>
-
