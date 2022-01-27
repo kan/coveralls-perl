@@ -9,18 +9,23 @@ use Devel::Cover::Report::Coveralls;
 my $normal_endpoint = 'https://coveralls.io/api/v1/jobs';
 my $endpoint_stem = '/api/v1/jobs';
 
-subtest 'get_config' => sub {
+subtest 'get_config (travis)' => sub {
     local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
     local $ENV{TRAVIS}        = 'true';
     local $ENV{TRAVIS_JOB_ID} = 100000;
     local $ENV{GITHUB_TOKEN} = undef;
+    local $ENV{TRAVIS_PULL_REQUEST} = 'false';
     my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
     is $got->{service_job_id}, 100000, 'config service_job_id';
     is $got->{service_name}, 'travis-ci', 'config service_name';
-    is $endpoint, $normal_endpoint;
+    ok !exists $got->{service_pull_request},'not a pull request';
+    local $ENV{TRAVIS_PULL_REQUEST} = '456';
+    ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{service_pull_request},'456','config pull request';
+    is $endpoint, $normal_endpoint, 'config endpoint';
 };
 
-subtest 'get_config extra env' => sub {
+subtest 'get_config extra env (travis)' => sub {
     local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
     local $ENV{TRAVIS}        = 'true';
     local $ENV{TRAVIS_JOB_ID} = 100000;
@@ -85,13 +90,16 @@ subtest 'get_config drone' => sub {
     local $ENV{GITHUB_ACTIONS} = undef; # reset on github
     local $ENV{GITHUB_REF}     = undef; # reset on github
     local $ENV{CIRCLECI}       = undef;
+    local $ENV{DRONE_PULL_REQUEST} = '666';
     local $ENV{DRONE_BUILD_NUMBER} = '123';
     local $ENV{DRONE} = "drone";
+    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
 
     my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
 
     is $got->{service_name}, 'drone', 'config service_name';
     is $got->{service_number}, '123', 'config service_number';
+    is $got->{service_pull_request}, '666', 'config service_pull_request';
     is $endpoint, $normal_endpoint;
 };
 
@@ -128,4 +136,3 @@ EOS
 };
 
 done_testing;
-
