@@ -2,7 +2,7 @@ package Devel::Cover::Report::Coveralls;
 use strict;
 use warnings;
 use 5.008005;
-our $VERSION = "0.20";
+our $VERSION = "0.30";
 
 our $CONFIG_FILE = '.coveralls.yml';
 our $API_ENDPOINT_STEM = '/api/v1/jobs';
@@ -142,7 +142,7 @@ sub get_config {
         $json->{service_event_type} = 'manual';
     }
 
-    die "required repo_token in $CONFIG_FILE, or launch via Travis" if !$json->{repo_token} && !$is_travis;
+    die "required repo_token in $CONFIG_FILE, make sure the environment var \"COVERALLS_REPO_TOKEN\" is set or launch via Travis" if !$json->{repo_token} && !$is_travis;
 
     if (exists $ENV{COVERALLS_PERL_SERVICE_NAME} && $ENV{COVERALLS_PERL_SERVICE_NAME}) {
         $json->{service_name} = $ENV{COVERALLS_PERL_SERVICE_NAME};

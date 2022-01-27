@@ -2,6 +2,10 @@ Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
 
+0.30 2022-01-18T13:24:06Z
+    - support DroneCI (thanks sirtoobii)
+    - support coveralls parallel mode (thanks sirtoobii)
+
 0.20 2020-11-08T09:23:58Z
     - support COVERALLS_FLAG_NAME, different COVERALLS_ENDPOINT (thanks mohawk2)
     - support GitHub actions in more native way without special secret (thanks mohawk2)

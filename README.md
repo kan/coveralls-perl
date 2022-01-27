@@ -12,42 +12,44 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 2\. Add settings to one of your GitHub workflows. Here assuming you're
 calling it `.github/workflows/ci.yml`:
 
-    jobs:
-      ubuntu:
-        runs-on: ${{ matrix.os }}
-        strategy:
-          fail-fast: false
-          matrix:
-            os: [ubuntu-latest]
-            perl-version: ['5.10', '5.14', '5.20']
-            include:
-              - perl-version: '5.30'
-                os: ubuntu-latest
-                release-test: true
-                coverage: true
-        container: perl:${{ matrix.perl-version }}
-        steps:
-          - uses: actions/checkout@v2
-          # do other stuff like installing external deps here
-          - run: cpanm -n --installdeps .
-          - run: perl -V
-          - name: Run release tests # before others as may install useful stuff
-            if: ${{ matrix.release-test }}
-            env:
-              RELEASE_TESTING: 1
-            run: |
-              cpanm -n --installdeps --with-develop .
-              prove -lr xt
-          - name: Run tests (no coverage)
-            if: ${{ !matrix.coverage }}
-            run: prove -l t
-          - name: Run tests (with coverage)
-            if: ${{ matrix.coverage }}
-            env:
-              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            run: |
-              cpanm -n Devel::Cover::Report::Coveralls
-              cover -test -report Coveralls
+```perl
+jobs:
+  ubuntu:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        perl-version: ['5.10', '5.14', '5.20']
+        include:
+          - perl-version: '5.30'
+            os: ubuntu-latest
+            release-test: true
+            coverage: true
+    container: perl:${{ matrix.perl-version }}
+    steps:
+      - uses: actions/checkout@v2
+      # do other stuff like installing external deps here
+      - run: cpanm -n --installdeps .
+      - run: perl -V
+      - name: Run release tests # before others as may install useful stuff
+        if: ${{ matrix.release-test }}
+        env:
+          RELEASE_TESTING: 1
+        run: |
+          cpanm -n --installdeps --with-develop .
+          prove -lr xt
+      - name: Run tests (no coverage)
+        if: ${{ !matrix.coverage }}
+        run: prove -l t
+      - name: Run tests (with coverage)
+        if: ${{ matrix.coverage }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cpanm -n Devel::Cover::Report::Coveralls
+          cover -test -report Coveralls
+```
 
 3\. Push new change to GitHub
 
@@ -59,14 +61,16 @@ calling it `.github/workflows/ci.yml`:
 
 2\. Add setting to `.travis.yaml` (`before_install` and `script` section)
 
-    language: perl
-    perl:
-      - 5.16.3
-      - 5.14.4
-    before_install:
-      cpanm -n Devel::Cover::Report::Coveralls
-    script:
-      perl Build.PL && ./Build build && cover -test -report coveralls
+```
+language: perl
+perl:
+  - 5.16.3
+  - 5.14.4
+before_install:
+  cpanm -n Devel::Cover::Report::Coveralls
+script:
+  perl Build.PL && ./Build build && cover -test -report coveralls
+```
 
 3\. push new change to github
 
@@ -82,7 +86,9 @@ calling it `.github/workflows/ci.yml`:
 
 2\. Write `.coveralls.yml` (don't add this to public repo)
 
-    repo_token: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+repo_token: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
 
 3\. Run CI.
 

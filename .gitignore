@@ -32,3 +32,4 @@ _build_params
 /Devel-Cover-Report-Coveralls-*
 !LICENSE
 .idea
+docker-compose-local.yml
