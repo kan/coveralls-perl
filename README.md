@@ -123,7 +123,7 @@ If you use this feature, you must ensure that your CI solution calls the paralle
 regardless of what CI you use, you have to make sure that the `build_number` is constant across the different jobs, otherwise
 coveralls is unable to group them together as one build.
 
-See also [https://docs.coveralls.io/parallel-build-webhook](https://docs.coveralls.io/parallel-build-webhook>)
+See [https://docs.coveralls.io/parallel-build-webhook](https://docs.coveralls.io/parallel-build-webhook)
 
 # SEE ALSO
 

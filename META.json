@@ -75,7 +75,7 @@
          "web" : "https://github.com/kan/coveralls-perl"
       }
    },
-   "version" : "0.30",
+   "version" : "0.31",
    "x_contributors" : [
       "David Steinbrunner <dsteinbrunner@pobox.com>",
       "Ed J <mohawk2@users.noreply.github.com>",

@@ -33,3 +33,4 @@ _build_params
 !LICENSE
 .idea
 docker-compose-local.yml
+.pause

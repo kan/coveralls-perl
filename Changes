@@ -2,6 +2,10 @@ Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
 
+0.31 2022-01-31T11:25:25Z
+    - add support for pull requests (thanks sirtoobii)
+    - fixed CircleCI workflow_id (thanks sirtoobii)
+
 0.30 2022-01-18T13:24:06Z
     - support DroneCI (thanks sirtoobii)
     - support coveralls parallel mode (thanks sirtoobii)
