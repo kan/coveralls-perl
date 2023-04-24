@@ -42,15 +42,29 @@ sub get_source {
     };
 }
 
+sub git_log {
+    my $format = shift;
+
+    my $text = '';
+
+    my $command = "git log -1 --encoding=UTF-8 --pretty=format:'$format'";
+    if (open(my $fh, '-|:encoding(UTF-8)', $command)) {
+        $text = do { local $/; <$fh> };
+        close $fh;
+    }
+
+    return $text;
+}
+
 sub get_git_info {
     my $git = {
         head => {
-            id              => `git log -1 --pretty=format:'%H'`,
-            author_name     => `git log -1 --pretty=format:'%aN'`,
-            author_email    => `git log -1 --pretty=format:'%ae'`,
-            committer_name  => `git log -1 --pretty=format:'%cN'`,
-            committer_email => `git log -1 --pretty=format:'%ce'`,
-            message         => `git log -1 --pretty=format:'%s'`
+            id              => git_log('%H'),
+            author_name     => git_log('%aN'),
+            author_email    => git_log('%ae'),
+            committer_name  => git_log('%cN'),
+            committer_email => git_log('%ce'),
+            message         => git_log('%s')
         },
         remotes => [
               map {
@@ -185,8 +199,10 @@ sub report {
     $json->{git} = eval { get_git_info() } || {};
     $json->{source_files} = \@sfs;
 
+    my $coder = JSON::PP->new->ascii;
+
     my $response = HTTP::Tiny->new( verify_SSL => 1 )
-        ->post_form( $endpoint, { json => encode_json $json } );
+        ->post_form( $endpoint, { json => $coder->encode($json) } );
 
     my $res = eval { decode_json $response->{content} };
 
