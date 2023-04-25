@@ -1,5 +1,5 @@
 name = "Devel-Cover-Report-Coveralls"
-badges = ['github-actions/master', 'github-actions/windows', 'github-actions/mac', 'travis']
+badges = ['github-actions/master', 'github-actions/windows', 'github-actions/mac']
 markdown_maker = "Pod::Markdown::Github"
 [FileGatherer]
 exclude_match = ["^docker-compose*"]
