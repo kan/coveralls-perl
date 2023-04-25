@@ -2,6 +2,10 @@ Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
 
+0.32 2023-04-25T09:30:49Z
+    - decode git log output (thanks voegelas)
+    - some bug fix (thanks voegelas)
+
 0.31 2022-01-31T11:25:25Z
     - add support for pull requests (thanks sirtoobii)
     - fixed CircleCI workflow_id (thanks sirtoobii)

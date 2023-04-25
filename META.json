@@ -4,7 +4,7 @@
       "Kan Fushihara <kan.fushihara@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v3.1.14, CPAN::Meta::Converter version 2.150010",
+   "generated_by" : "Minilla/v3.1.21, CPAN::Meta::Converter version 2.150010",
    "license" : [
       "perl_5"
    ],
@@ -71,12 +71,13 @@
       "homepage" : "https://github.com/kan/coveralls-perl",
       "repository" : {
          "type" : "git",
-         "url" : "git://github.com/kan/coveralls-perl.git",
+         "url" : "https://github.com/kan/coveralls-perl.git",
          "web" : "https://github.com/kan/coveralls-perl"
       }
    },
-   "version" : "0.31",
+   "version" : "0.32",
    "x_contributors" : [
+      "Andreas Vögele <andreas@andreasvoegele.com>",
       "David Steinbrunner <dsteinbrunner@pobox.com>",
       "Ed J <mohawk2@users.noreply.github.com>",
       "Graham Knop <haarg@haarg.org>",
