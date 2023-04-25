@@ -22,7 +22,8 @@
          "eg",
          "examples",
          "author",
-         "builder"
+         "builder",
+         "RELEASE.md"
       ]
    },
    "prereqs" : {
