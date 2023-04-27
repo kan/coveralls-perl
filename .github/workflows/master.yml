@@ -25,10 +25,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@master
+      - name: Configure git
+        run: git config --system --add safe.directory '*'
       - name: perl -V
         run: perl -V
       - name: Install dependencies
-        run: curl -sL https://git.io/cpm | perl - install -g --with-recommends --with-test --with-configure --show-build-log-on-failure
+        run: cpanm --quiet --notest --installdeps --with-recommends --with-configure .
       - name: Run build
         run: |
             perl Build.PL
@@ -40,5 +42,6 @@ jobs:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         run: |
             ./Build install
-            cover -test -report coveralls
+            HARNESS_PERL_SWITCHES=-MDevel::Cover DEVEL_COVER_SELF=1 ./Build test
+            cover -report coveralls
         if: matrix.perl-version == 'latest'
