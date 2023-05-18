@@ -14,6 +14,7 @@ subtest 'get_config (travis)' => sub {
     local $ENV{TRAVIS}        = 'true';
     local $ENV{TRAVIS_JOB_ID} = 100000;
     local $ENV{GITHUB_TOKEN} = undef;
+    local $ENV{CIRCLECI} = undef;
     local $ENV{TRAVIS_PULL_REQUEST} = 'false';
     my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
     is $got->{service_job_id}, 100000, 'config service_job_id';
@@ -33,6 +34,7 @@ subtest 'get_config extra env (travis)' => sub {
     local $ENV{COVERALLS_ENDPOINT} = $diff_endpoint;
     local $ENV{COVERALLS_FLAG_NAME} = 'Unit';
     local $ENV{GITHUB_TOKEN} = undef;
+    local $ENV{CIRCLECI} = undef;
     my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
     is $got->{service_job_id}, 100000, 'config service_job_id';
     is $got->{service_name}, 'travis-ci', 'config service_name';
@@ -47,6 +49,7 @@ subtest 'get_config github' => sub {
     local $ENV{GITHUB_ACTIONS}  = 1;
     local $ENV{GITHUB_SHA}      = '123456789';
     local $ENV{GITHUB_TOKEN} = undef;
+    local $ENV{CIRCLECI} = undef;
     my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
     is $got->{service_name}, 'github-actions', 'config service_name';
     is $got->{service_number}, '123456789', 'config service_number';
@@ -59,6 +62,7 @@ subtest 'get_config github actions improved' => sub {
     local $ENV{COVERALLS_REPO_TOKEN} = undef;
     local $ENV{GITHUB_TOKEN} = 'abcdef';
     local $ENV{GITHUB_RUN_ID} = '123456789';
+    local $ENV{CIRCLECI} = undef;
     my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
     is $got->{service_name}, 'github', 'config service_name';
     is $got->{service_job_id}, '123456789', 'config service_job_id';
@@ -74,7 +78,8 @@ subtest 'get_config azure' => sub {
     local $ENV{BUILD_SOURCEBRANCHNAME} = 'feature';
     local $ENV{BUILD_BUILDID} = '123456789';
     local $ENV{GITHUB_TOKEN} = undef;
-
+    local $ENV{CIRCLECI} = undef;
+    
     my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
 
     is $got->{service_name}, 'azure-pipelines', 'config service_name';
@@ -109,7 +114,8 @@ subtest 'get_config local' => sub {
     local $ENV{DRONE}           = undef; # reset on drone
     local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
     local $ENV{GITHUB_TOKEN} = undef;
-
+    local $ENV{CIRCLECI} = undef;
+    
     my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
 
     is $got->{service_name}, 'coveralls-perl', 'config service_name';
