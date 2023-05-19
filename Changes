@@ -2,6 +2,9 @@ Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
 
+0.32.1 2023-05-19T14:06:26Z
+    - fix test (thanks chylli-deriv)
+
 0.32 2023-04-25T09:30:49Z
     - decode git log output (thanks voegelas)
     - some bug fix (thanks voegelas)
