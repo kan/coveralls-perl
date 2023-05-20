@@ -21,9 +21,9 @@ sub get_source {
     my $source = '';
     my @coverage;
 
-    open F, $file or warn("Unable to open $file: $!\n"), return;
+    open my $fh, '<', $file or warn("Unable to open $file: $!\n"), return;
 
-    while (defined(my $l = <F>)) {
+    while (defined(my $l = <$fh>)) {
         chomp $l;
         my $n = $.;
 
@@ -31,7 +31,7 @@ sub get_source {
         push @coverage, $callback->($n);
     }
 
-    close(F);
+    close($fh);
 
     $file =~ s!^blib/!!;
 
