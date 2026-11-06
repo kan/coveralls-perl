@@ -16,8 +16,16 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - name: perl -V
         run: perl -V
+      # Homebrew's default openssl is 4.x, which Net::SSLeay 1.96 does not build against.
+      # Build it against openssl@3 instead.
+      - name: Install OpenSSL 3
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+        run: brew install openssl@3
       - name: Install dependencies
-        run: curl -sL https://git.io/cpm | perl - install -g --with-recommends --with-test --with-configure --show-build-log-on-failure
+        run: |
+          export OPENSSL_PREFIX="$(brew --prefix openssl@3)"
+          curl -sL https://git.io/cpm | perl - install -g --with-recommends --with-test --with-configure --show-build-log-on-failure
       - name: Run build
         run: perl Build.PL
       - name: Run test

@@ -13,10 +13,13 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      # Let every version report its own result instead of cancelling the rest on one failure.
+      fail-fast: false
       matrix:
+        # perl:5.20 and older are stored in the schema 1 manifest format, which the Docker on the
+        # current runners can no longer pull (containerd v2.1). 5.22 is the oldest usable image.
         perl-version:
-          - '5.14'
-          - '5.18'
+          - '5.22'
           - '5.28'
           - 'latest'
 
