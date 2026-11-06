@@ -1,0 +1,37 @@
+name: Verify Lockfile
+
+# Checks that .github/workflows/actions.lock matches the uses: lines of the workflows, and that
+# the commits it pins can be verified upstream. Actions also enforces the lockfile when a job
+# runs, but that only fails the run with startup_failure before any job starts, so this check
+# finds a broken lockfile when a PR or a push lands instead.
+#
+# Update the lockfile with gh actions-lock: after changing a uses: line, run it at the root of
+# the repository and commit the rewritten workflows with the lockfile. Do not edit the lockfile
+# by hand. Dependabot rewrites the entries in its PRs that update actions.
+#
+# The container images of master.yml (perl:<version>) have no digest, so --verify warns about
+# them. That is expected: the image is chosen by the Perl version under test.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify actions.lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      # The extension is before 1.0, so its version is pinned. Neither Dependabot nor
+      # actions.lock tracks this version. If --verify fails after the lockfile format changes,
+      # raise it to the version of gh actions-lock used locally.
+      - run: gh extension install github/gh-actions-lock --pin v0.4.1
+      - run: gh actions-lock --verify

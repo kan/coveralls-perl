@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Updates the actions of .github/workflows. The PRs also rewrite the entries of
+  # .github/workflows/actions.lock.
+  #
+  # cooldown: only take a version 3 days after it is published. A broken or hijacked release is
+  # usually pulled within a few days. Security updates are not delayed by it.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      github-actions:
+        patterns:
+          - "*"

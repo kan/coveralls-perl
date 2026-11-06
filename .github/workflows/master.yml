@@ -24,7 +24,7 @@ jobs:
       image: perl:${{ matrix.perl-version }}
 
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v7.0.1
       - name: Configure git
         run: git config --system --add safe.directory '*'
       - name: perl -V
