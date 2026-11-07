@@ -104,11 +104,30 @@ sub get_git_info {
     return $git;
 }
 
-# COVERALLS_PARALLEL turns parallel mode on unless it is empty, "false" or "0",
-# as in the official coverage-reporter.
-sub is_parallel {
+# A switch in an environment variable (COVERALLS_PARALLEL, COVERALLS_NO_FAIL) is on unless it is
+# unset, empty, "false" or "0", as COVERALLS_PARALLEL is in the official coverage-reporter.
+sub is_enabled {
     my $value = shift;
     return defined $value && $value ne '' && $value ne 'false' && $value ne '0';
+}
+
+# Reads the response of the jobs API (an HTTP::Tiny response). Returns the URL of the job, or
+# undef and the error to show.
+sub parse_response {
+    my $response = shift;
+    my $content = $response->{content} // '';
+    my $res = eval { decode_json $content };
+    my $status = "$response->{status} $response->{reason}";
+    if (!$res || ref $res ne 'HASH') {
+        # HTTP::Tiny puts its own error (e.g. a failed connection) into the content, with status 599.
+        # An error page from a proxy can be long, so only its start is shown.
+        $content =~ s/\s+\z//;
+        $content = substr($content, 0, 200) . '...' if length $content > 200;
+        return (undef, "$status: $content");
+    }
+    # A job that was registered always has its URL.
+    return ($res->{url}, undef) if $response->{success} && $res->{url};
+    return (undef, $res->{message} || $status);
 }
 
 # The number of the pull request in the event payload of GitHub Actions, or undef.
@@ -140,7 +159,7 @@ sub get_config {
     $json->{repo_token} = $config->{repo_token} if $config->{repo_token};
     $json->{repo_token} = $ENV{COVERALLS_REPO_TOKEN} if $ENV{COVERALLS_REPO_TOKEN};
     $json->{flag_name} = $ENV{COVERALLS_FLAG_NAME} if $ENV{COVERALLS_FLAG_NAME};
-    $json->{parallel} = \1 if is_parallel($ENV{COVERALLS_PARALLEL});
+    $json->{parallel} = \1 if is_enabled($ENV{COVERALLS_PARALLEL});
 
     my $endpoint = ($ENV{COVERALLS_ENDPOINT} || $API_ENDPOINT) . $API_ENDPOINT_STEM;
     if ($ENV{TRAVIS}) {
@@ -261,7 +280,13 @@ sub report {
         push @sfs, get_source( $file, _parse_line $c );
     }
 
-    my ($json, $endpoint) = get_config();
+    my ($json, $endpoint) = eval { get_config() };
+    if (!$json) {
+        # No repo token, which happens on pull requests from forks: they get no secrets.
+        die $@ unless is_enabled($ENV{COVERALLS_NO_FAIL});
+        print "- Report::Coveralls --------\nerror: $@----------------------------\n";
+        return;
+    }
     $json->{git} = apply_ci_git_info($json, eval { get_git_info() } || {});
     $json->{source_files} = \@sfs;
 
@@ -270,24 +295,25 @@ sub report {
     my $response = HTTP::Tiny->new( verify_SSL => 1 )
         ->post_form( $endpoint, { json => $coder->encode($json) } );
 
-    my $res = eval { decode_json $response->{content} };
-
+    my ($url, $error) = parse_response($response);
 
     print("- Report::Coveralls --------\n");
     if(exists($json->{service_number})){
         print "My build number: ". $json->{service_number} ."\n";
     }
-    if ($@) {
-        print "error: " . $response->{content};
-    } elsif ($response->{success}) {
-        print "register: " . $res->{url} . "\n";
+    if (defined $error) {
+        print "error: $error\n";
     } else {
-        print "error: " . $res->{message} . "\n";
+        print "register: $url\n";
     }
     if($json->{parallel}){
         print "Parallel mode: True". "\n"
     }
     print("----------------------------\n");
+
+    # cover does not catch this, so it exits with a non-zero status and the CI job fails.
+    die "The upload to Coveralls failed. Set COVERALLS_NO_FAIL=1 to exit 0 instead.\n"
+        if defined $error && !is_enabled($ENV{COVERALLS_NO_FAIL});
 }
 
 
@@ -423,6 +449,14 @@ regardless of what CI you use, you have to make sure that the C<build_number> is
 coveralls is unable to group them together as one build.
 
 See L<https://docs.coveralls.io/parallel-build-webhook>
+
+=head2 COVERALLS_NO_FAIL
+
+When the report cannot be sent to Coveralls (the upload fails, or there is no repo token),
+C<cover -report coveralls> prints the error and exits with a non-zero status, so that the CI
+job fails. Set this to C<true> to exit 0 instead, e.g. when coverage is optional for the build or
+pull requests from forks get no repo token. When C<cover> makes several reports, the ones after
+C<coveralls> are not made after a failure, so put C<coveralls> last. Any value other than empty, C<false> and C<0> turns it on.
 
 =head1 SEE ALSO
 

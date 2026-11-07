@@ -25,7 +25,7 @@ my @CI_VARS = qw(
     GITHUB_ACTIONS GITHUB_TOKEN GITHUB_RUN_ID GITHUB_RUN_ATTEMPT GITHUB_JOB GITHUB_SHA
     GITHUB_REF GITHUB_REF_NAME GITHUB_HEAD_REF GITHUB_EVENT_PATH
     COVERALLS_REPO_TOKEN COVERALLS_ENDPOINT COVERALLS_FLAG_NAME COVERALLS_PARALLEL
-    COVERALLS_PERL_SERVICE_NAME
+    COVERALLS_PERL_SERVICE_NAME COVERALLS_NO_FAIL
 );
 
 subtest 'get_config (travis)' => sub {
@@ -297,6 +297,88 @@ subtest 'apply_ci_git_info' => sub {
     $git = { branch => 'master', head => { id => 'from-git' } };
     Devel::Cover::Report::Coveralls::apply_ci_git_info({}, $git);
     is_deeply $git, { branch => 'master', head => { id => 'from-git' } }, 'unchanged without CI values';
+};
+
+subtest 'parse_response' => sub {
+    my $parse = \&Devel::Cover::Report::Coveralls::parse_response;
+    is_deeply [ $parse->({ success => 1, status => 200, reason => 'OK',
+        content => '{"message":"Job ##1.1","url":"https://coveralls.io/jobs/1"}' }) ],
+        [ 'https://coveralls.io/jobs/1', undef ], 'success gives the URL';
+    is_deeply [ $parse->({ success => '', status => 422, reason => 'Unprocessable Entity',
+        content => '{"message":"Couldn\'t find a repository matching this job.","error":true}' }) ],
+        [ undef, "Couldn't find a repository matching this job." ], 'the message of an API error';
+    is_deeply [ $parse->({ success => '', status => 500, reason => 'Internal Server Error',
+        content => '<html>oops</html>' }) ],
+        [ undef, '500 Internal Server Error: <html>oops</html>' ], 'a response that is not JSON';
+    is_deeply [ $parse->({ success => '', status => 599, reason => 'Internal Exception',
+        content => "Could not connect\n" }) ],
+        [ undef, "599 Internal Exception: Could not connect" ], 'a failed connection';
+    is_deeply [ $parse->({ success => 1, status => 200, reason => 'OK',
+        content => '{"message":"could not register","error":true}' }) ],
+        [ undef, 'could not register' ], 'a 2xx response without the URL of a job';
+    is_deeply [ $parse->({ success => '', status => 422, reason => 'Unprocessable Entity',
+        content => '{"message":"","error":true}' }) ],
+        [ undef, '422 Unprocessable Entity' ], 'the status when the message is empty';
+    my (undef, $error) = $parse->({ success => '', status => 502, reason => 'Bad Gateway',
+        content => 'x' x 1000 });
+    is $error, '502 Bad Gateway: ' . ('x' x 200) . '...', 'only the start of a long body';
+};
+
+subtest 'report exits non-zero when the upload fails' => sub {
+    local @ENV{@CI_VARS};
+    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
+    my $db = bless {}, 'Local::FakeDB';
+    no warnings 'once', 'redefine';
+    local *Local::FakeDB::cover = sub { bless {}, 'Local::FakeCover' };
+    # Never reach Coveralls from the tests.
+    my $response;
+    local *HTTP::Tiny::post_form = sub { $response };
+    my $run = sub {
+        my $out = '';
+        open my $fh, '>', \$out or die $!;
+        my $old = select $fh;
+        my $ok = eval { Devel::Cover::Report::Coveralls->report($db, { file => [] }); 1 };
+        my $err = $@;
+        select $old;
+        return ($ok, $err, $out);
+    };
+
+    $response = { success => '', status => 422, reason => 'Unprocessable Entity',
+        content => '{"message":"Couldn\'t find a repository matching this job."}' };
+    my ($ok, $err, $out) = $run->();
+    ok !$ok, 'dies on an API error';
+    like $err, qr/COVERALLS_NO_FAIL/, 'says how to exit 0';
+    like $out, qr/^error: Couldn't find a repository/m, 'prints the error';
+
+    $response = { success => '', status => 599, reason => 'Internal Exception',
+        content => "Could not connect to 'coveralls.io:443'\n" };
+    ($ok, $err, $out) = $run->();
+    ok !$ok, 'dies on a failed connection';
+    like $out, qr/^error: 599 Internal Exception: Could not connect/m, 'prints the error';
+
+    {
+        local $ENV{COVERALLS_REPO_TOKEN};
+        ($ok, $err, $out) = $run->();
+        ok !$ok, 'dies without a repo token';
+        like $err, qr/COVERALLS_REPO_TOKEN/, 'says which variable to set';
+
+        local $ENV{COVERALLS_NO_FAIL} = '1';
+        ($ok, $err, $out) = $run->();
+        ok $ok, 'returns without a repo token with COVERALLS_NO_FAIL';
+        like $out, qr/^error: required repo_token/m, 'prints the error';
+    }
+
+    local $ENV{COVERALLS_NO_FAIL} = 'true';
+    ($ok, $err, $out) = $run->();
+    ok $ok, 'returns with COVERALLS_NO_FAIL';
+    like $out, qr/^error: /m, 'still prints the error';
+
+    local $ENV{COVERALLS_NO_FAIL} = 'false';
+    $response = { success => 1, status => 200, reason => 'OK',
+        content => '{"url":"https://coveralls.io/jobs/1"}' };
+    ($ok, $err, $out) = $run->();
+    ok $ok, 'returns on success';
+    like $out, qr{^register: https://coveralls.io/jobs/1$}m, 'prints the job';
 };
 
 subtest 'strip_url_credentials' => sub {
