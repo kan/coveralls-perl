@@ -66,9 +66,12 @@
 
 ## 書き方の制約
 
-- **最低対応バージョンは Perl 5.8.5**（`use 5.008005`）。5.10 以降の構文は使わない。
-  `//`、`say`、`given/when`、`state` などが該当する。CI で動かしているのは 5.26 以降だが、
-  宣言を変えずに新しい構文を入れない
+- **最低対応バージョンは Perl 5.20**（`use 5.020`）。今の Devel::Cover（1.52）が 5.20 を要求するため。
+  5.22 以降の構文や機能は使わない。`<<>>`、`<<~` のヒアドキュメント、`isa` 演算子などが該当する。
+  5.20 で experimental の postfix deref（`$ref->@*`）とサブルーチンのシグネチャも使わない。
+  `//`、`say`、`s///r` は使ってよい。`given/when`（smartmatch）は experimental で廃止が
+  決まっているので使わない。CI の `master.yml` は `oldest-perl` ジョブで 5.20 を、`perl` ジョブで
+  5.26 以降を確かめている。宣言と `oldest-perl` の版は一緒に変える
 - 依存はコアモジュールか `cpanfile` に宣言済みのものに限る。増やすときは `cpanfile` に足す
 - CI は Linux / Windows（Strawberry Perl）/ macOS で動く。パス区切りやシェルのクォートなど、
   POSIX のシェルだけを前提にした書き方は Windows で動かないことがある

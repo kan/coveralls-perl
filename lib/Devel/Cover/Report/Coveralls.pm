@@ -1,7 +1,7 @@
 package Devel::Cover::Report::Coveralls;
 use strict;
 use warnings;
-use 5.008005;
+use 5.020;
 our $VERSION = "0.32.1";
 
 our $CONFIG_FILE = '.coveralls.yml';

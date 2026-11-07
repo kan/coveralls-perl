@@ -1,4 +1,4 @@
-[![Actions Status](https://github.com/kan/coveralls-perl/workflows/master/badge.svg)](https://github.com/kan/coveralls-perl/actions) [![Actions Status](https://github.com/kan/coveralls-perl/workflows/windows/badge.svg)](https://github.com/kan/coveralls-perl/actions) [![Actions Status](https://github.com/kan/coveralls-perl/workflows/mac/badge.svg)](https://github.com/kan/coveralls-perl/actions)
+[![Actions Status](https://github.com/kan/coveralls-perl/actions/workflows/master.yml/badge.svg?branch=master)](https://github.com/kan/coveralls-perl/actions?workflow=master) [![Actions Status](https://github.com/kan/coveralls-perl/actions/workflows/windows.yml/badge.svg?branch=master)](https://github.com/kan/coveralls-perl/actions?workflow=windows) [![Actions Status](https://github.com/kan/coveralls-perl/actions/workflows/mac.yml/badge.svg?branch=master)](https://github.com/kan/coveralls-perl/actions?workflow=mac)
 # NAME
 
 Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover

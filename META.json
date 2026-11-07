@@ -4,13 +4,13 @@
       "Kan Fushihara <kan.fushihara@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v3.1.21, CPAN::Meta::Converter version 2.150010",
+   "generated_by" : "Minilla/v3.3.2",
    "license" : [
       "perl_5"
    ],
    "meta-spec" : {
       "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
-      "version" : 2
+      "version" : "2"
    },
    "name" : "Devel-Cover-Report-Coveralls",
    "no_index" : {
@@ -53,7 +53,7 @@
             "Mozilla::CA" : "0",
             "Net::SSLeay" : "1.49",
             "YAML" : "0",
-            "perl" : "5.008005"
+            "perl" : "5.020"
          }
       },
       "test" : {

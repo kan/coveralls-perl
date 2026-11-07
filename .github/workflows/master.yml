@@ -53,3 +53,23 @@ jobs:
             HARNESS_PERL_SWITCHES=-MDevel::Cover DEVEL_COVER_SELF=1 ./Build test
             cover -report coveralls
         if: matrix.perl-version == 'latest'
+
+  # The minimum Perl the module declares (use 5.020). Its perl image cannot be pulled on the
+  # current runners (see above), so this job installs Perl with actions-setup-perl.
+  oldest-perl:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: shogo82148/actions-setup-perl@v1.44.4
+        with:
+          perl-version: '5.20'
+      - name: perl -V
+        run: perl -V
+      - name: Install dependencies
+        run: cpanm --quiet --notest --installdeps --with-recommends --with-configure .
+      - name: Run build
+        run: |
+            perl Build.PL
+            ./Build build
+            ./Build test

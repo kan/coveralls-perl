@@ -7,6 +7,7 @@ workflows:
         - 'actions/checkout@v7.0.1'
     '.github/workflows/master.yml':
         - 'actions/checkout@v7.0.1'
+        - 'shogo82148/actions-setup-perl@v1.44.4'
     '.github/workflows/verify-lockfile.yml':
         - 'actions/checkout@v7.0.1'
     '.github/workflows/windows.yml':
@@ -17,3 +18,8 @@ dependencies:
         commit: 'sha1-3d3c42e5aac5ba805825da76410c181273ba90b1'
         owner_id: 44036562
         repo_id: 197814629
+    'shogo82148/actions-setup-perl@v1.44.4':
+        ref: 'v1.44.4'
+        commit: 'sha1-3b59bd33efdae98406a9bc4b75a4aa041e11993a'
+        owner_id: 1157344
+        repo_id: 205511355
