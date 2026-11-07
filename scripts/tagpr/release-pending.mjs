@@ -22,21 +22,7 @@
  * 1 つも無ければ、版の節が 1 つでもあると `true` になる（タグの無い repo の最初のマージの run）。
  */
 import { readFileSync } from 'node:fs';
-import { ReleaseError, changelogPath, compareVersions, findSection, readRootFile, untaggedVersions } from './changelog.mjs';
-
-/**
- * タグの ref の一覧から、最新の版を返す。版のタグが無ければ、tagpr と同じく `0.0.0`
- * @param {string} refs 1 行に 1 つの `refs/tags/...`
- * @returns {string}
- */
-function latestVersion(refs) {
-  let latest = '0.0.0';
-  for (const ref of refs.split('\n')) {
-    const m = /^refs\/tags\/v(\d+\.\d+\.\d+)$/.exec(ref.trim());
-    if (m && compareVersions(m[1], latest) > 0) latest = m[1];
-  }
-  return latest;
-}
+import { ReleaseError, changelogPath, findSection, latestVersion, readRootFile, untaggedVersions } from './changelog.mjs';
 
 /**
  * 出すものがあるかと、その理由
