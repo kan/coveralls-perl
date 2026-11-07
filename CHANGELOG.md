@@ -7,6 +7,8 @@ Versions up to 0.32.1 were released from `Changes`, before this file existed.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-07
+
 - Update the usage examples for GitHub Actions (with parallel builds), Travis CI and the other CI services, and document `COVERALLS_NO_FAIL` and `COVERALLS_PERL_SERVICE_NAME` (#58)
 - Do not wrap the commit ID, names, e-mail addresses and message from `git log` in single quotes on Windows (#54)
 - **Breaking:** `cover -report coveralls` exits with a non-zero status when the upload to Coveralls fails, so the CI job fails. Set `COVERALLS_NO_FAIL=1` to exit 0, which also covers a missing repo token, e.g. on pull requests from forks (#56)
@@ -104,6 +106,7 @@ Versions up to 0.32.1 were released from `Changes`, before this file existed.
 
 - Original version
 
+[1.0.0]: https://github.com/kan/coveralls-perl/releases/tag/v1.0.0
 [0.32.1]: https://metacpan.org/release/KAN/Devel-Cover-Report-Coveralls-0.32.1
 [0.32]: https://metacpan.org/release/KAN/Devel-Cover-Report-Coveralls-0.32
 [0.31]: https://metacpan.org/release/KAN/Devel-Cover-Report-Coveralls-0.31
