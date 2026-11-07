@@ -6,7 +6,8 @@
  *
  * subtree の squash は、取り込んだ commit の tree をそのまま `scripts/tagpr/` に置く。そこで
  * `HEAD:scripts/tagpr` の tree と、`.github/workflows/` にある
- * `uses: kan/tagpr-scripts/.github/workflows/tagpr.yml@<SHA>` の commit の tree を比べる。
+ * `uses: kan/tagpr-scripts/.github/workflows/<tagpr.yml などの workflow>@<SHA>` の commit の tree を
+ * 比べる。呼ぶ行が複数あれば、すべて同じ commit であること。
  * 次のどれでも落ちる。
  *
  * - subtree を取り込んだのに、呼ぶ行の SHA を上げ忘れた
@@ -33,8 +34,9 @@ const workflowsDir = '.github/workflows';
 const upstreamUrl = process.env.TAGPR_SCRIPTS_URL || 'https://github.com/kan/tagpr-scripts.git';
 // git grep（POSIX の ERE）で行を拾い、JS で ref を取り出す。2 つは同じ形を表す。
 // 行頭から `uses:` までに空白と `- ` しか許さないので、コメントや run: の文字列の中の行は拾わない
-const usesGrep = `^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*["']?kan/tagpr-scripts/\\.github/workflows/tagpr\\.yml@[^[:space:]"'#]+`;
-const usesRef = /tagpr\.yml@([^\s"'#]+)$/;
+// この repo の workflow なら名前を問わず拾う（tagpr.yml、tagpr-label.yml）
+const usesGrep = `^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*["']?kan/tagpr-scripts/\\.github/workflows/[^@[:space:]"'#]+\\.ya?ml@[^[:space:]"'#]+`;
+const usesRef = /\.ya?ml@([^\s"'#]+)$/;
 
 /** git を走らせる。`okStatus` に無い終了コードなら落とす（git grep は一致が無いと 1 を返す） */
 function git(args, okStatus = [0]) {
@@ -95,7 +97,7 @@ try {
 
   const pins = findPins();
   if (pins.length === 0) {
-    throw new ReleaseError(`no "uses: kan/tagpr-scripts/.github/workflows/tagpr.yml@<SHA>" in ${workflowsDir}`);
+    throw new ReleaseError(`no "uses: kan/tagpr-scripts/.github/workflows/<workflow>.yml@<SHA>" in ${workflowsDir}`);
   }
   for (const { path, ref } of pins) {
     if (!/^[0-9a-f]{40}$/.test(ref)) {

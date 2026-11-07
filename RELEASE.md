@@ -16,8 +16,10 @@
      workflow を起動しないため。版と CHANGELOG の検査は、tagpr の run の中の
      `release-prepare.mjs` が行う
    - 版の上がり方はラベルで決まる。`enhancement` の PR が入っていれば minor、それ以外は patch。
-     変えたいときはリリース PR に `tagpr:minor` / `tagpr:major` を付け、tagpr の workflow を
-     `workflow_dispatch` で走らせ直す
+     変えたいときはリリース PR に `tagpr:minor` / `tagpr:major` を付ける。`tagpr-label.yml` が
+     リリース PR を draft にして作り直し、ready に戻す。ready に戻るのを待ってからマージする
+   - マージの run が取り消されてタグが打たれなかったときは、次の tagpr の run がマージの run を
+     再実行してタグを打たせる。それでも打たれなかったときだけ、マージコミットの run を手で再実行する
 4. マージすると、tagpr がタグ（`vX.Y.Z`）を打ち、`publish.yml` が起動する。`publish.yml` は
    テストして tarball を作り、PAUSE へアップロードしてから GitHub Release を作る
 5. PAUSE から届く索引のメールを確かめる

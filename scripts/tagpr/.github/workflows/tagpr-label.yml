@@ -1,0 +1,71 @@
+name: tagpr-label
+
+# **取り込み先の tagpr-label.yml から呼ぶ reusable workflow（issue #3）。** リリース PR のラベルを
+# 付け外ししたら、取り込み先の tagpr.yml を `workflow_dispatch` で起動し直して、リリース PR を
+# 今のラベルの版に作り直す。作り直さずにマージすると、ラベルの版ではなく前の版がそのまま出る
+# （タグの版はマージの時点の版のファイルで決まる）。
+#
+# 呼ぶ側は `on: pull_request_target: types: [labeled, unlabeled]` で呼ぶ。
+#
+# - **`pull_request_target` にする。** `pull_request` は、GITHUB_TOKEN が作ったリリース PR では
+#   承認待ちになりうるうえ、checkout が PR のマージ用の ref になり、tagpr は「リリースのブランチの
+#   上ではない」で止まる。`pull_request_target` は既定のブランチの上で走り、人が付けたラベルなら
+#   承認なしで走る（kan/tagpr-scripts-sandbox で確かめた。#3 のコメント）
+# - **ここでは何も checkout しない。** `pull_request_target` で PR の中身を書き込みの権限で
+#   走らせると危ない。起動し直すだけにし、作り直しは tagpr.yml が既定のブランチで行う
+# - **tagpr を直に呼ばず、`workflow_dispatch` で起動し直す。** 呼ぶ側の tagpr.yml の前のジョブ
+#   （クレジットなど）も、手で `gh workflow run` したときと同じく走る。GITHUB_TOKEN の
+#   `workflow_dispatch` は、run を起こせる例外
+# - **ラベルの名前では絞らない。** 版を変えるのは `tagpr:minor` / `tagpr:major` だけとは限らない
+#   （`.tagpr` の `minorLabels` など）。作り直しは何度走っても同じ結果になるので、余分に走っても
+#   run が 1 つ増えるだけ
+# - tagpr が自分で付け外しするラベルは GITHUB_TOKEN の操作なので、この workflow を起こさない
+#   （作り直しは繰り返さない）
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  rebuild:
+    name: Rebuild the release pull request
+    # この repo のリリース PR（tagpr.yml と同じく、ラベル `tagpr` があり、ブランチが `tagpr-from-v` で
+    # 始まるもの）だけ。フォークの PR やほかの PR では skip する。`pull_request_target` 以外で
+    # 呼ばれたときは skip せず、下のステップで落とす（呼ぶ側の設定の誤りを黙って通さない）
+    # 開いているものだけ（マージ済みのリリース PR のラベルを整理しても、マージの run を待たせない）
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      (github.event.pull_request.state == 'open' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       startsWith(github.event.pull_request.head.ref, 'tagpr-from-v') &&
+       contains(github.event.pull_request.labels.*.name, 'tagpr'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write        # workflow_dispatch
+      pull-requests: write  # draft にする
+    steps:
+      # **作り直しが済むまでマージできないよう、先に draft にする。** ラベルを付けてすぐマージすると、
+      # 前の版のまま出る。作り直しが成功すれば tagpr.yml が ready に戻し、落ちれば draft のまま残る。
+      # リリース PR の base がリリースのブランチ（tagpr がそこへ向けて作る）
+      - name: Mark the release pull request draft and start tagpr.yml on the release branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          BRANCH: ${{ github.event.pull_request.base.ref }}
+          ACTION: ${{ github.event.action }}
+          LABEL: ${{ github.event.label.name }}
+          PR: ${{ github.event.pull_request.number }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != pull_request_target ]; then
+            echo "::error::call tagpr-label.yml on pull_request_target (types: [labeled, unlabeled]), not $EVENT"
+            exit 1
+          fi
+          if [ "$DRAFT" = false ]; then
+            gh pr ready --undo "$PR"
+          fi
+          gh workflow run tagpr.yml --ref "$BRANCH"
+          echo "::notice::#$PR の $LABEL が $ACTION されたので、#$PR を draft にし、tagpr.yml を $BRANCH で起動し直した"

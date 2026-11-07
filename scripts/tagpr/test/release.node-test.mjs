@@ -16,6 +16,7 @@ import { compareVersions, findSection, githubRepo, releaseDate, unwrapLines, ver
 const prepare = join(import.meta.dirname, '..', 'release-prepare.mjs');
 const notes = join(import.meta.dirname, '..', 'release-notes.mjs');
 const pendingScript = join(import.meta.dirname, '..', 'release-pending.mjs');
+const missedScript = join(import.meta.dirname, '..', 'missed-tags.mjs');
 
 const HEADER = '# Changelog\n\nIntro.\n\n';
 const MINIMAL = `${HEADER}## [Unreleased]\n\n- A.\n`;
@@ -483,12 +484,15 @@ test('prepare: says where to run it when a file is missing', () => {
 
 // --- release-pending.mjs ---
 
-/** タグの ref を標準入力に渡して走らせる。`changelog` が null なら CHANGELOG.md を置かない */
-function pending(changelog, refs) {
+/** CHANGELOG.md だけを置いた repo で、標準入力を渡してスクリプトを走らせる。`changelog` が null なら置かない */
+function runWithInput(script, args, input, changelog) {
   const dir = makeRepo({ changelog: changelog ?? '', pkg: false, lock: false });
   if (changelog === null) rmSync(join(dir, 'CHANGELOG.md'));
-  return spawnSync(process.execPath, [pendingScript], { cwd: dir, env: gitEnv(), encoding: 'utf8', input: refs.join('\n') });
+  return spawnSync(process.execPath, [script, ...args], { cwd: dir, env: gitEnv(), encoding: 'utf8', input });
 }
+
+/** タグの ref を標準入力に渡して走らせる */
+const pending = (changelog, refs) => runWithInput(pendingScript, [], refs.join('\n'), changelog);
 
 const TAGS = ['refs/tags/v1.2.2', 'refs/tags/v1.2.10', 'refs/tags/v1.2.3-rc.1', 'refs/tags/sdk/v9.0.0', 'refs/tags/latest'];
 const RELEASED = `${HEADER}## [Unreleased]\n\n## [1.2.10] - 2026-01-01\n\n- Old.\n\n[1.2.10]: https://github.com/o/r/releases/tag/v1.2.10\n`;
@@ -535,6 +539,53 @@ test('pending: fails when CHANGELOG.md is missing', () => {
   const r = pending(null, []);
   assert.equal(r.status, 1);
   assert.equal(r.stdout, '');
+});
+
+// --- missed-tags.mjs ---
+
+/** `missed-tags.mjs <mode>` を、CHANGELOG.md を置いた repo で走らせる */
+const missed = (mode, input, changelog = RELEASED) => runWithInput(missedScript, [mode], input, changelog);
+
+test('missed: untagged prints the sections newer than the latest tag, oldest first', () => {
+  const r = missed('untagged', TAGS.join('\n'), RELEASED.replace('## [1.2.10]', '## [1.3.0]\n\n- New.\n\n## [1.2.11]'));
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, '1.2.11\n1.3.0\n');
+});
+
+test('missed: untagged prints nothing when every section is tagged', () => {
+  const r = missed('untagged', TAGS.join('\n'));
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, '');
+});
+
+test('missed: untagged prints nothing when there are no version tags', () => {
+  // タグの無い repo の最初のマージは、打ち損ねと見分けられないので tagpr に任せる
+  const r = missed('untagged', 'refs/tags/1.2.10\nrefs/tags/v1.2.3-rc.1');
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, '');
+});
+
+/** 終了コード 0 で、標準出力が `out` であることを確かめる */
+function assertPrints(r, out) {
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, out);
+}
+
+test('missed: latest prints the latest version tag without v', () => {
+  assertPrints(missed('latest', TAGS.join('\n')), '1.2.10\n');
+  assertPrints(missed('latest', 'refs/tags/latest'), '0.0.0\n');
+});
+
+test('missed: newest prints the newest version heading of the CHANGELOG on stdin', () => {
+  const text = `${HEADER}## [Unreleased]\n\n## [1.2.9]\n\n- A.\n\n## [1.2.11] - 2026-01-02\n\n- B.\n\n## [1.2.10]\n`;
+  assertPrints(missed('newest', text), '1.2.11\n');
+  assertPrints(missed('newest', `${HEADER}## [Unreleased]\n`), '');
+});
+
+test('missed: fails on an unknown mode', () => {
+  const r = missed('tag', '');
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /usage: missed-tags\.mjs/);
 });
 
 // --- release-notes.mjs ---
