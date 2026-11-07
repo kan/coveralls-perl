@@ -123,6 +123,51 @@ subtest 'get_config local' => sub {
     is $endpoint, $normal_endpoint;
 };
 
+subtest 'strip_url_credentials' => sub {
+    my %cases = (
+        'https://gitlab-ci-token:SECRET@gitlab.example.com/x/y.git' => 'https://gitlab.example.com/x/y.git',
+        'https://user@github.com/x/y.git'                         => 'https://github.com/x/y.git',
+        'https://user:p@ss@github.com/x/y.git'                    => 'https://github.com/x/y.git',
+        'ssh://git@github.com/x/y.git'                            => 'ssh://github.com/x/y.git',
+        'https://github.com/x/y.git'                              => 'https://github.com/x/y.git',
+        'https://github.com/x/y@z.git'                            => 'https://github.com/x/y@z.git',
+        'https://github.com?x=a@b'                                => 'https://github.com?x=a@b',
+        'git@github.com:x/y.git'                                  => 'git@github.com:x/y.git',
+        '/path/to/repo.git'                                       => '/path/to/repo.git',
+    );
+    for my $url (sort keys %cases) {
+        is Devel::Cover::Report::Coveralls::strip_url_credentials($url), $cases{$url}, $url;
+    }
+};
+
+subtest 'parse_git_remotes' => sub {
+    my $text = join '', map { "$_\n" }
+        "origin\thttps://gitlab-ci-token:SECRET\@gitlab.example.com/x/y.git (fetch)",
+        "origin\thttps://gitlab-ci-token:SECRET\@gitlab.example.com/x/y.git (push)",
+        "upstream\tgit\@github.com:x/y.git (fetch)",
+        "upstream\tgit\@github.com:x/y.git (push)",
+        "local\tC:/Users/John Doe/repo (fetch)\r",
+        "local\tC:/Users/John Doe/repo (push)\r";
+
+    is_deeply Devel::Cover::Report::Coveralls::parse_git_remotes($text), [
+        { name => 'origin',   url => 'https://gitlab.example.com/x/y.git' },
+        { name => 'upstream', url => 'git@github.com:x/y.git' },
+        { name => 'local',    url => 'C:/Users/John Doe/repo' },
+    ], 'one fetch URL per remote, without credentials';
+
+    is_deeply Devel::Cover::Report::Coveralls::parse_git_remotes(''), [], 'no remotes';
+    is_deeply Devel::Cover::Report::Coveralls::parse_git_remotes(undef), [], 'git not available';
+};
+
+subtest 'get_git_info remotes' => sub {
+    my $inside = `git rev-parse --is-inside-work-tree 2>&1`;
+    plan skip_all => 'not in a git work tree' unless defined $inside && $inside =~ /^true/;
+
+    my @names = split /\n/, `git remote`;
+    my $got = Devel::Cover::Report::Coveralls::get_git_info();
+    is_deeply [ map { $_->{name} } @{ $got->{remotes} } ], \@names, 'every remote, once each';
+};
+
 subtest 'get_source' => sub {
     my $source = {
         name => "$FindBin::Bin/example.pl",

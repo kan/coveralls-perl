@@ -1,6 +1,7 @@
 Revision history for Perl extension Devel-Cover-Report-Coveralls
 
 {{$NEXT}}
+    - do not send credentials in git remote URLs, and send each remote once with its fetch URL (#51)
 
 0.32.1 2023-05-19T14:06:26Z
     - fix test (thanks chylli-deriv)

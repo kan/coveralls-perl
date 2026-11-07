@@ -56,6 +56,31 @@ sub git_log {
     return $text;
 }
 
+# Turn the output of `git remote -v` into the list of remotes to send.
+# Each remote is listed once (its fetch URL), and credentials are removed
+# from the URL.
+sub parse_git_remotes {
+    my $text = shift;
+
+    my @remotes;
+    for my $line (split /\n/, defined $text ? $text : '') {
+        # "<name>\t<url> (fetch)". The URL may contain spaces (a local path).
+        next unless $line =~ /^(\S+)\t(.*) \(fetch\)\r?$/;
+        push @remotes, +{ name => $1, url => strip_url_credentials($2) };
+    }
+
+    return \@remotes;
+}
+
+# Remove the user information from a URL with a scheme
+# (https://user:pass@host/path -> https://host/path).
+# scp-like URLs (git@host:path) cannot hold a password and are kept as they are.
+sub strip_url_credentials {
+    my $url = shift;
+    $url =~ s!^([A-Za-z][A-Za-z0-9+.-]*://)[^/?#]*@!$1!;
+    return $url;
+}
+
 sub get_git_info {
     my $git = {
         head => {
@@ -66,12 +91,7 @@ sub get_git_info {
             committer_email => git_log('%ce'),
             message         => git_log('%s')
         },
-        remotes => [
-              map {
-                  my ( $name, $url ) = split( " ", $_ );
-                  +{ name => $name, url => $url }
-              } split( "\n", `git remote -v` )
-        ],
+        remotes => parse_git_remotes(scalar `git remote -v`),
     };
     my ($branch,) = grep { /^\* / } split( "\n", `git branch` );
     $branch =~ s/^\* //;
