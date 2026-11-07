@@ -332,89 +332,101 @@ Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
 
 =head2 GitHub Actions
 
-1. Add your repo to coveralls. L<https://coveralls.io/repos/new>
+1. Add your repo to Coveralls. L<https://coveralls.io/repos/new>
 
-2. Add settings to one of your GitHub workflows. Here assuming you're
-calling it F<.github/workflows/ci.yml>:
+2. Add a workflow, e.g. F<.github/workflows/test.yml>. The C<GITHUB_TOKEN> of the workflow is
+enough to send the report; you do not need the repo token of Coveralls.
+
+  name: test
+  on: [push, pull_request]
+  jobs:
+    test:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v7
+        - uses: shogo82148/actions-setup-perl@v1
+          with:
+            perl-version: '5.42'
+        - run: cpanm -n --installdeps .
+        - run: cpanm -n Devel::Cover::Report::Coveralls
+        - run: cover -test -report coveralls
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+3. Push the change to GitHub. Coveralls shows the build, and on a pull request it reports the
+coverage back to the pull request.
+
+To send the coverage of several jobs (a matrix) as one build, mark each job as parallel, give
+each its own flag name, and close the build when all of them are done. The build is the run of
+the workflow, so the jobs and the closing step agree on it without any setting.
 
   jobs:
-    ubuntu:
-      runs-on: ${{ matrix.os }}
+    test:
+      runs-on: ubuntu-latest
       strategy:
         fail-fast: false
         matrix:
-          os: [ubuntu-latest]
-          perl-version: ['5.10', '5.14', '5.20']
-          include:
-            - perl-version: '5.30'
-              os: ubuntu-latest
-              release-test: true
-              coverage: true
-      container: perl:${{ matrix.perl-version }}
+          perl-version: ['5.20', '5.30', '5.42']
       steps:
-        - uses: actions/checkout@v2
-        # do other stuff like installing external deps here
+        - uses: actions/checkout@v7
+        - uses: shogo82148/actions-setup-perl@v1
+          with:
+            perl-version: ${{ matrix.perl-version }}
         - run: cpanm -n --installdeps .
-        - run: perl -V
-        - name: Run release tests # before others as may install useful stuff
-          if: ${{ matrix.release-test }}
-          env:
-            RELEASE_TESTING: 1
-          run: |
-            cpanm -n --installdeps --with-develop .
-            prove -lr xt
-        - name: Run tests (no coverage)
-          if: ${{ !matrix.coverage }}
-          run: prove -l t
-        - name: Run tests (with coverage)
-          if: ${{ matrix.coverage }}
+        - run: cpanm -n Devel::Cover::Report::Coveralls
+        - run: cover -test -report coveralls
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          run: |
-            cpanm -n Devel::Cover::Report::Coveralls
-            cover -test -report Coveralls
-
-3. Push new change to GitHub
-
-4. Coveralls should update your project page
+            COVERALLS_PARALLEL: true
+            COVERALLS_FLAG_NAME: perl-${{ matrix.perl-version }}
+    finish:
+      needs: test
+      if: ${{ always() }}
+      runs-on: ubuntu-latest
+      steps:
+        - uses: coverallsapp/github-action@v2
+          with:
+            parallel-finished: true
 
 =head2 Travis CI
 
-1. Add your repo to coveralls. L<https://coveralls.io/repos/new>
+1. Add your repo to Coveralls. L<https://coveralls.io/repos/new>
 
-2. Set C<COVERALLS_REPO_TOKEN> in the settings of your repository on Travis CI, to the repo_token
-from your project page in coveralls. Coveralls requires it on Travis CI too.
+2. In the settings of your repository on Travis CI, set the environment variable
+C<COVERALLS_REPO_TOKEN> to the repo token shown on your project page in Coveralls.
 
-3. Add setting to F<.travis.yaml> (C<before_install> and C<script> section)
+3. Add the settings to F<.travis.yml>:
 
     language: perl
     perl:
-      - 5.16.3
-      - 5.14.4
+      - "5.30"
     before_install:
-      cpanm -n Devel::Cover::Report::Coveralls
+      - cpanm -n Devel::Cover::Report::Coveralls
     script:
-      perl Build.PL && ./Build build && cover -test -report coveralls
+      - perl Build.PL && ./Build build && cover -test -report coveralls
 
-4. push new change to github
+4. Push the change. Coveralls shows the build.
 
-5. updated coveralls your project page
+=head2 Other CI services
 
-=begin html
+GitLab CI, CircleCI, Jenkins, Azure Pipelines, Drone and Semaphore are detected from their
+environment variables, and the build number, branch, commit and pull request they give are sent.
 
-<img src="http://kan.github.io/images/p5-ltsv.png" />
+1. Get the repo token from your project page in Coveralls.
 
-=end html
-
-=head2 another CI
-
-1. Get repo_token from your project page in coveralls.
-
-2. Write F<.coveralls.yml> (don't add this to public repo)
+2. Give it to the job as C<COVERALLS_REPO_TOKEN>, as a secret variable of the CI service.
+Or write it in F<.coveralls.yml> in the directory you run C<cover> from, and do not commit
+that file to a public repository:
 
     repo_token: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-3. Run CI.
+3. Run C<cover -test -report coveralls> in the job.
+
+=head2 When the report cannot be sent
+
+C<cover -report coveralls> prints the error and exits with a non-zero status, so the job fails.
+To keep the job green, e.g. on pull requests from forks, which get no secrets, set
+L</COVERALLS_NO_FAIL>.
 
 =head1 DESCRIPTION
 
@@ -428,7 +440,8 @@ and correctly.
 
 =head2 COVERALLS_REPO_TOKEN
 
-The Coveralls authentication token for this particular repo.
+The Coveralls authentication token for this particular repo. It is used before C<repo_token>
+in F<.coveralls.yml>. On GitHub Actions, C<GITHUB_TOKEN> is used when neither is set.
 
 =head2 COVERALLS_ENDPOINT
 
@@ -444,13 +457,12 @@ to the same parallel build its own flag name.
 
 =head2 COVERALLS_PARALLEL
 
-Set this to C<true> in case you run your tests in a parallel environment. Any value other than
-empty, C<false> and C<0> turns it on. It is important to note though:
-If you use this feature, you must ensure that your CI solution calls the parallel webhook when everything is done. Moreover,
-regardless of what CI you use, you have to make sure that the C<build_number> is constant across the different jobs, otherwise
-coveralls is unable to group them together as one build.
+Set this to C<true> when several jobs send their coverage to one build. Any value other than
+empty, C<false> and C<0> turns it on. Coveralls then keeps the build open until the parallel
+build webhook is called, so call it when all the jobs are done. The jobs must send the same build
+number; the CI services above give one per run (on GitHub Actions, the run of the workflow).
 
-See L<https://docs.coveralls.io/parallel-build-webhook>
+See L<https://docs.coveralls.io/api-parallel-build-webhook>
 
 =head2 COVERALLS_NO_FAIL
 
@@ -460,16 +472,20 @@ job fails. Set this to C<true> to exit 0 instead, e.g. when coverage is optional
 pull requests from forks get no repo token. When C<cover> makes several reports, the ones after
 C<coveralls> are not made after a failure, so put C<coveralls> last. Any value other than empty, C<false> and C<0> turns it on.
 
+=head2 COVERALLS_PERL_SERVICE_NAME
+
+Sends this as the name of the CI service, in place of the one detected (e.g. C<github>).
+
 =head1 SEE ALSO
 
 L<https://coveralls.io/>
-L<https://coveralls.io/docs>
+L<https://docs.coveralls.io/>
 L<https://github.com/coagulant/coveralls-python>
 L<Devel::Cover>
 
 =head2 EXAMPLE
 
-L<https://coveralls.io/r/kan/p5-smart-options>
+L<https://coveralls.io/github/kan/coveralls-perl>
 
 =head1 LICENSE
 
