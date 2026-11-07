@@ -1,7 +1,7 @@
-[![Actions Status](https://github.com/kan/coveralls-perl/actions/workflows/master.yml/badge.svg?branch=master)](https://github.com/kan/coveralls-perl/actions?workflow=master) [![Actions Status](https://github.com/kan/coveralls-perl/actions/workflows/windows.yml/badge.svg?branch=master)](https://github.com/kan/coveralls-perl/actions?workflow=windows) [![Actions Status](https://github.com/kan/coveralls-perl/actions/workflows/mac.yml/badge.svg?branch=master)](https://github.com/kan/coveralls-perl/actions?workflow=mac)
+[![Actions Status](https://github.com/kan/coveralls-perl/actions/workflows/master.yml/badge.svg?branch=master)](https://github.com/kan/coveralls-perl/actions?workflow=master) [![Actions Status](https://github.com/kan/coveralls-perl/actions/workflows/windows.yml/badge.svg?branch=master)](https://github.com/kan/coveralls-perl/actions?workflow=windows) [![Actions Status](https://github.com/kan/coveralls-perl/actions/workflows/mac.yml/badge.svg?branch=master)](https://github.com/kan/coveralls-perl/actions?workflow=mac) [![Coverage Status](https://img.shields.io/coveralls/kan/coveralls-perl/master.svg?style=flat)](https://coveralls.io/r/kan/coveralls-perl?branch=master)
 # NAME
 
-Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
+Devel::Cover::Report::Coveralls - Coveralls backend for Devel::Cover
 
 # USAGE
 
@@ -113,13 +113,18 @@ To keep the job green, e.g. on pull requests from forks, which get no secrets, s
 
 # DESCRIPTION
 
-[https://coveralls.io/](https://coveralls.io/) is service to publish your coverage stats online with a lot of nice features. This module provides seamless integration with [Devel::Cover](https://metacpan.org/pod/Devel%3A%3ACover) in your perl projects.
+This module is a report of [Devel::Cover](https://metacpan.org/pod/Devel%3A%3ACover) that sends the coverage of your Perl project to
+[Coveralls](https://coveralls.io/). Run it as `cover -report coveralls` after the tests, or
+as `cover -test -report coveralls` to run them too.
+
+It sends the coverage of each line of each source file, with the git commit, branch and
+remotes of the working tree. On the CI services listed in ["USAGE"](#usage), it also sends the
+build number, job, branch and pull request the CI service gives.
 
 # ENVIRONMENT
 
-Set these environment variables to control the behaviour. Various other
-variables, set by particular CI environments, will be interpreted silently
-and correctly.
+These environment variables change what is sent. The variables that the CI services set are
+read as well; you do not need to set them.
 
 ## COVERALLS\_REPO\_TOKEN
 
@@ -128,9 +133,9 @@ in `.coveralls.yml`. On GitHub Actions, `GITHUB_TOKEN` is used when neither is s
 
 ## COVERALLS\_ENDPOINT
 
-If you have an enterprise installation, set this to change from the
-default of `https://coveralls.io`. The rest of the URL (`/api`, etc)
-won't change, and will be correct.
+The URL of the Coveralls server, for Coveralls Enterprise. The default is
+`https://coveralls.io`. The report is sent to this URL followed by `/api/v1/jobs`, so give
+it without a path.
 
 ## COVERALLS\_FLAG\_NAME
 
@@ -161,14 +166,14 @@ Sends this as the name of the CI service, in place of the one detected (e.g. `gi
 
 # SEE ALSO
 
-[https://coveralls.io/](https://coveralls.io/)
-[https://docs.coveralls.io/](https://docs.coveralls.io/)
-[https://github.com/coagulant/coveralls-python](https://github.com/coagulant/coveralls-python)
-[Devel::Cover](https://metacpan.org/pod/Devel%3A%3ACover)
+- [Devel::Cover](https://metacpan.org/pod/Devel%3A%3ACover)
+- [https://coveralls.io/](https://coveralls.io/) and its documentation, [https://docs.coveralls.io/](https://docs.coveralls.io/)
+- [https://github.com/coverallsapp/coverage-reporter](https://github.com/coverallsapp/coverage-reporter), the official reporter of Coveralls.
+This module sends the values it sends on each CI service.
 
 ## EXAMPLE
 
-[https://coveralls.io/github/kan/coveralls-perl](https://coveralls.io/github/kan/coveralls-perl)
+The coverage of this module: [https://coveralls.io/github/kan/coveralls-perl](https://coveralls.io/github/kan/coveralls-perl)
 
 # LICENSE
 

@@ -1,5 +1,5 @@
 {
-   "abstract" : "coveralls backend for Devel::Cover",
+   "abstract" : "Coveralls backend for Devel::Cover",
    "author" : [
       "Kan Fushihara <kan.fushihara@gmail.com>"
    ],
@@ -84,7 +84,8 @@
       "Songmu <y.songmu@gmail.com>",
       "Tobias Bossert <tobias.bossert@fastpath.ch>",
       "bayashi <bayashi@cpan.org>",
-      "chylli-deriv <52912308+chylli-deriv@users.noreply.github.com>"
+      "chylli-deriv <52912308+chylli-deriv@users.noreply.github.com>",
+      "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
    ],
    "x_serialization_backend" : "JSON::PP version 4.02",
    "x_static_install" : 1

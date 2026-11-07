@@ -326,7 +326,7 @@ __END__
 
 =head1 NAME
 
-Devel::Cover::Report::Coveralls - coveralls backend for Devel::Cover
+Devel::Cover::Report::Coveralls - Coveralls backend for Devel::Cover
 
 =head1 USAGE
 
@@ -430,13 +430,18 @@ L</COVERALLS_NO_FAIL>.
 
 =head1 DESCRIPTION
 
-L<https://coveralls.io/> is service to publish your coverage stats online with a lot of nice features. This module provides seamless integration with L<Devel::Cover> in your perl projects.
+This module is a report of L<Devel::Cover> that sends the coverage of your Perl project to
+L<Coveralls|https://coveralls.io/>. Run it as C<cover -report coveralls> after the tests, or
+as C<cover -test -report coveralls> to run them too.
+
+It sends the coverage of each line of each source file, with the git commit, branch and
+remotes of the working tree. On the CI services listed in L</USAGE>, it also sends the
+build number, job, branch and pull request the CI service gives.
 
 =head1 ENVIRONMENT
 
-Set these environment variables to control the behaviour. Various other
-variables, set by particular CI environments, will be interpreted silently
-and correctly.
+These environment variables change what is sent. The variables that the CI services set are
+read as well; you do not need to set them.
 
 =head2 COVERALLS_REPO_TOKEN
 
@@ -445,9 +450,9 @@ in F<.coveralls.yml>. On GitHub Actions, C<GITHUB_TOKEN> is used when neither is
 
 =head2 COVERALLS_ENDPOINT
 
-If you have an enterprise installation, set this to change from the
-default of C<https://coveralls.io>. The rest of the URL (C</api>, etc)
-won't change, and will be correct.
+The URL of the Coveralls server, for Coveralls Enterprise. The default is
+C<https://coveralls.io>. The report is sent to this URL followed by C</api/v1/jobs>, so give
+it without a path.
 
 =head2 COVERALLS_FLAG_NAME
 
@@ -478,14 +483,20 @@ Sends this as the name of the CI service, in place of the one detected (e.g. C<g
 
 =head1 SEE ALSO
 
-L<https://coveralls.io/>
-L<https://docs.coveralls.io/>
-L<https://github.com/coagulant/coveralls-python>
-L<Devel::Cover>
+=over
+
+=item * L<Devel::Cover>
+
+=item * L<https://coveralls.io/> and its documentation, L<https://docs.coveralls.io/>
+
+=item * L<https://github.com/coverallsapp/coverage-reporter>, the official reporter of Coveralls.
+This module sends the values it sends on each CI service.
+
+=back
 
 =head2 EXAMPLE
 
-L<https://coveralls.io/github/kan/coveralls-perl>
+The coverage of this module: L<https://coveralls.io/github/kan/coveralls-perl>
 
 =head1 LICENSE
 
