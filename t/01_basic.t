@@ -426,6 +426,15 @@ subtest 'get_git_info remotes' => sub {
     is_deeply [ map { $_->{name} } @{ $got->{remotes} } ], \@names, 'every remote, once each';
 };
 
+subtest 'git_log' => sub {
+    my $inside = `git rev-parse --is-inside-work-tree 2>&1`;
+    plan skip_all => 'not in a git work tree' unless defined $inside && $inside =~ /^true/;
+
+    chomp(my $head = `git rev-parse HEAD`);
+    is Devel::Cover::Report::Coveralls::git_log('%H'), $head, 'the commit ID, without quotes (Windows)';
+    unlike Devel::Cover::Report::Coveralls::git_log('%ae'), qr/^'|'$/, 'no quotes around the e-mail address';
+};
+
 subtest 'get_source' => sub {
     my $source = {
         name => "$FindBin::Bin/example.pl",
