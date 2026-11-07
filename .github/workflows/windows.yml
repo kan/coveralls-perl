@@ -1,11 +1,9 @@
 name: windows
 
+# Changes go in by pull request (AGENTS.md), so a working branch is tested by `pull_request`.
 on:
   push:
-    branches:
-      - '*'
-    tags-ignore:
-      - '*'
+    branches: [master]
   pull_request:
 
 permissions:

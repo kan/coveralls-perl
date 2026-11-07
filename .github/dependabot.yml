@@ -15,3 +15,6 @@ updates:
       github-actions:
         patterns:
           - "*"
+    ignore:
+      # Moved together with scripts/tagpr/ by git subtree pull, never on its own
+      - dependency-name: 'kan/tagpr-scripts*'

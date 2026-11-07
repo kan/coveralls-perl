@@ -10,12 +10,10 @@ on configure => sub {
 on 'develop' => sub {
     requires 'Minilla';
     requires 'Pod::Markdown::Github';
-    requires 'Version::Next';
     requires 'Test::MinimumVersion::Fast';
     requires 'Test::PAUSE::Permissions';
     requires 'Test::Pod';
     requires 'Test::Spellunker';
-    requires 'CPAN::Uploader';
 };
 
 requires 'Devel::Cover', 1.02;

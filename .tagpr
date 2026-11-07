@@ -1,0 +1,22 @@
+# tagpr: keeps a release pull request open against master and tags the release
+# when it is merged. The workflow is .github/workflows/tagpr.yml; the release
+# steps are in AGENTS.md ("バージョンとリリース").
+[tagpr]
+	releaseBranch = master
+	vPrefix = true
+	# The version lives in the module's `our $VERSION` line and in the META.json
+	# that Minilla writes. scripts/tagpr/release-prepare.mjs checks that both are
+	# at the proposed version. Why the version has three numbers: AGENTS.md.
+	versionFile = lib/Devel/Cover/Report/Coveralls.pm,META.json
+	# CHANGELOG.md is written by hand under "## [Unreleased]" in each pull
+	# request; scripts/tagpr/release-prepare.mjs turns that section into the
+	# release's. scripts/tagpr/ is a git subtree of kan/tagpr-scripts.
+	changelog = false
+	postVersionCommand = node scripts/tagpr/release-prepare.mjs --changelog-only
+	# publish.yml creates the GitHub release after the upload to PAUSE, so a
+	# release never exists for a version that failed to upload.
+	release = false
+	# A merged pull request labelled enhancement makes the release a minor one.
+	# Otherwise it is a patch, unless tagpr:minor / tagpr:major is put on the
+	# release pull request.
+	minorLabels = enhancement

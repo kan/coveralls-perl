@@ -14,20 +14,27 @@
 | `t/example.pl` | `get_source` のテストが読む入力ファイル。中身を変えるとテストの期待値も変わる |
 | `cpanfile` | 依存モジュールの宣言（runtime / test / configure / develop） |
 | `minil.toml` | Minilla の設定 |
-| `Changes` | リリース履歴。先頭の `{{$NEXT}}` の下に未リリースの変更を書く |
-| `RELEASE.md` | リリース手順（PAUSE へのアップロード） |
+| `CHANGELOG.md` | リリース履歴（Keep a Changelog）。`## [Unreleased]` の下に未リリースの変更を書く |
+| `RELEASE.md` | メンテナ向けのリリース手順（tagpr のリリース PR のマージ） |
+| `.tagpr` | tagpr の設定 |
+| `scripts/tagpr/` | kan/tagpr-scripts を `git subtree` で取り込んだもの。**手で編集しない**（下の「バージョンとリリース」） |
 | `docker-compose.yml` | 開発用の Perl コンテナ（perl 5.30.1 + cpm） |
-| `.github/workflows/` | CI。ubuntu（`master.yml`）/ windows / mac と、`actions.lock` の検証 |
+| `.github/workflows/` | CI。ubuntu（`master.yml`）/ windows / mac、`actions.lock` の検証、リリース（`tagpr.yml` / `publish.yml`） |
 | `.travis.yml` | 旧 CI の名残。ブランチ名に `travis` を含むときしか動かない |
 
 ## 生成物は直接編集しない
 
-次のファイルは Minilla（`minil build` / `minil release`）で生成される。
+次のファイルは Minilla（`minil build`）で生成される。
 
 - **`Build.PL` と `META.json` は手で編集しない。** 依存の変更は `cpanfile` に、メタ情報の変更は
   `minil.toml` に書く
 - **`README.md` は手で編集しない。** `Coveralls.pm` の POD から `Pod::Markdown::Github` で生成される。
   利用方法や環境変数の説明を直すときは POD を直す
+- **POD、`cpanfile`、`minil.toml` を変えたら、同じ PR で `minil build` を実行し、作り直された
+  `README.md` / `META.json` も一緒にコミットする。** リリース PR は `META.json` の版しか変えないので、
+  ここで作り直さないと古いまま配布される。コンテナの中では `PATH=/app/local/bin:$PATH minil build`。
+  コンテナから GitHub へ ssh で繋がらないためエラーで終わるが、`README.md` と `META.json` はその前に
+  書き出される
 - `Devel-Cover-Report-Coveralls-*/`、`.build/`、`local/`、`blib/` はビルドや依存インストールの産物で、
   `.gitignore` 済み。読んだり編集したりしない
 
@@ -109,14 +116,34 @@ prove -l t
 
 ## バージョンとリリース
 
-- バージョンは `Coveralls.pm` の `our $VERSION` にある。**バージョンの変更（bump）とリリースは
-  メンテナが `RELEASE.md` の手順で行う。** 頼まれていないのに `$VERSION` を変えたり `minil release` を
-  実行したりしない
-- 利用者に見える変更をしたら、`Changes` の `{{$NEXT}}` の下に 1 行で書く。外部の貢献者の変更には
-  既存の行にならって `(thanks <GitHub のユーザー名>)` を付ける
-- `.pause`（PAUSE の認証情報）はコミットしない（`.gitignore` 済み）
+リリースは tagpr で行う。`master` への push ごとに `tagpr.yml` がリリース PR を作り直し、
+メンテナがそれをマージするとタグが打たれ、`publish.yml` が CPAN（PAUSE）へアップロードして
+GitHub Release を作る。仕組みと落ちたときの扱いは `scripts/tagpr/README.md` の「The tagpr workflow」、
+メンテナの手順は `RELEASE.md`。
+
+- **版を手で変えない。** 版は `Coveralls.pm` の `our $VERSION` と `META.json` にあり、どちらも
+  リリース PR で tagpr が上げる。`minil release` は使わない（版を上げてタグを打つのは tagpr の役目）
+- **版は 3 つ組（`1.0.1`、`1.1.0`）にする。** 0.x の 3 つ組は数値にすると 0.32 より小さくなり、
+  PAUSE の索引に載らなかった（#50）。1.0.0 以降は 3 つ組のまま上がっていく
+- **利用者に見える変更をする PR は、`CHANGELOG.md` の `## [Unreleased]` の下に 1 行を足す。**
+  その節がそのままリリースノートになる。外部の貢献者の変更には、既存の行にならって
+  `(thanks <GitHub のユーザー名>)` を付ける。リンクは行の中に書く（参照リンクの定義は節の外にあり、
+  リリースノートではリンクにならない）。見出しや末尾のリンクの形は `scripts/tagpr/README.md` の
+  「What the CHANGELOG has to look like」
+- **`scripts/tagpr/` を手で編集しない。** 変えるときは kan/tagpr-scripts を直し、
+  `git subtree pull -S --prefix=scripts/tagpr https://github.com/kan/tagpr-scripts.git main --squash` で
+  取り込む。同じ PR で `tagpr.yml` の `uses: kan/tagpr-scripts/...@<SHA>` を、squash のコミットの
+  `git-subtree-split` の SHA へ上げる。食い違いは `master.yml` の `tagpr-subtree` ジョブが落とす。
+  **この PR はマージコミットでマージする**（squash すると次の subtree pull が壊れる）
+- PAUSE の認証情報は GitHub の `cpan` environment の secret（`PAUSE_USER` / `PAUSE_PASSWORD`）にある。
+  repo のルートに `.pause`（手で PAUSE へ上げていたころの認証情報）があっても、コミットしない（`.gitignore` 済み）
 
 ## 運用
 
-- repo のルートに `.tagpr` は無い。メンテナは `master` へ直接 push し、外部からの変更は PR で受ける
+- **`master` へ直接 push しない。** ブランチを切って PR で入れる。tagpr はマージされた PR から
+  リリース PR を組み立てるため、直接 push した変更はリリースの流れから漏れる
+- CI（`master.yml` / `windows.yml` / `mac.yml`）は `master` への push と PR で走る。作業ブランチを
+  push しただけでは走らないので、CI で確かめたいときは PR を作る。tagpr のリリース PR では CI が
+  走らない（`GITHUB_TOKEN` で作られた PR は workflow を起動しない）。リリース PR の版と CHANGELOG は、
+  tagpr の run の中で `release-prepare.mjs` が確かめる
 - コミットメッセージの言語は日本語と英語のどちらでもよい（履歴には両方ある）
