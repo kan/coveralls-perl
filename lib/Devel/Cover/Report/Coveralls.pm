@@ -106,6 +106,22 @@ sub get_git_info {
     return $git;
 }
 
+# COVERALLS_PARALLEL turns parallel mode on unless it is empty, "false" or "0",
+# as in the official coverage-reporter.
+sub is_parallel {
+    my $value = shift;
+    return defined $value && $value ne '' && $value ne 'false' && $value ne '0';
+}
+
+# Put the branch and the commit that the CI service gave (get_config) into the
+# git information, over what git itself says.
+sub apply_ci_git_info {
+    my ($json, $git) = @_;
+    $git->{branch} = $json->{service_branch} if defined $json->{service_branch};
+    $git->{head}{id} = $json->{commit_sha} if defined $json->{commit_sha};
+    return $git;
+}
+
 sub get_config {
     my $config = {};
     if (-f $CONFIG_FILE) {
@@ -116,12 +132,10 @@ sub get_config {
     $json->{repo_token} = $config->{repo_token} if $config->{repo_token};
     $json->{repo_token} = $ENV{COVERALLS_REPO_TOKEN} if $ENV{COVERALLS_REPO_TOKEN};
     $json->{flag_name} = $ENV{COVERALLS_FLAG_NAME} if $ENV{COVERALLS_FLAG_NAME};
-    $json->{parallel} = \1 if $ENV{COVERALLS_PARALLEL};
+    $json->{parallel} = \1 if is_parallel($ENV{COVERALLS_PARALLEL});
 
-    my $is_travis;
     my $endpoint = ($ENV{COVERALLS_ENDPOINT} || $API_ENDPOINT) . $API_ENDPOINT_STEM;
     if ($ENV{TRAVIS}) {
-        $is_travis = 1;
         $json->{service_name} = $config->{service_name} || 'travis-ci';
         $json->{service_job_id} = $ENV{TRAVIS_JOB_ID};
         if($ENV{TRAVIS_PULL_REQUEST} && $ENV{TRAVIS_PULL_REQUEST} ne 'false'){
@@ -130,7 +144,12 @@ sub get_config {
     } elsif ($ENV{CIRCLECI}) {
         $json->{service_name} = 'circleci';
         $json->{service_number} = $ENV{CIRCLE_WORKFLOW_ID};
-        # Unfortunately, circle-ci reports the url to PR..
+        # The URL of the pull request; its number is at the end. CI_PULL_REQUEST is the older name.
+        if (($ENV{CIRCLE_PULL_REQUEST} || $ENV{CI_PULL_REQUEST} // '') =~ /(\d+)$/) {
+            $json->{service_pull_request} = $1;
+        }
+        $json->{service_branch} = $ENV{CIRCLE_BRANCH} if $ENV{CIRCLE_BRANCH};
+        $json->{commit_sha} = $ENV{CIRCLE_SHA1} if $ENV{CIRCLE_SHA1};
     } elsif($ENV{DRONE}) {
         $json->{service_name} = 'drone';
         $json->{service_number} = $ENV{DRONE_BUILD_NUMBER};
@@ -143,8 +162,28 @@ sub get_config {
         $json->{service_pull_request} = $ENV{SEMAPHORE_GIT_PR_NUMBER} if $ENV{SEMAPHORE_GIT_PR_NUMBER};
     } elsif ($ENV{JENKINS_URL}) {
         $json->{service_name} = 'jenkins';
-        $json->{service_number} = $ENV{BUILD_NUM};
-        # In jenkins, the PR number is not available as an env var..
+        $json->{service_number} = $ENV{BUILD_NUMBER} if $ENV{BUILD_NUMBER};
+        $json->{service_job_id} = $ENV{BUILD_ID} if $ENV{BUILD_ID};
+        # Set by multibranch pipelines. In a pull request build, BRANCH_NAME is "PR-<number>" and
+        # CHANGE_BRANCH is the source branch, so CHANGE_BRANCH comes first.
+        my $branch = $ENV{CHANGE_BRANCH} || $ENV{BRANCH_NAME};
+        $json->{service_branch} = $branch if $branch;
+        $json->{service_pull_request} = $ENV{CHANGE_ID} if $ENV{CHANGE_ID};
+    # GitLab CI and Azure Pipelines come before the GitHub cases: their jobs may have GITHUB_TOKEN
+    # set for another reason.
+    } elsif ($ENV{GITLAB_CI}) {
+        $json->{service_name} = 'gitlab-ci';
+        $json->{service_number} = $ENV{CI_PIPELINE_IID} if $ENV{CI_PIPELINE_IID};
+        $json->{service_job_id} = $ENV{CI_JOB_NAME} if $ENV{CI_JOB_NAME};
+        $json->{service_pull_request} = $ENV{CI_MERGE_REQUEST_IID} if $ENV{CI_MERGE_REQUEST_IID};
+        $json->{service_branch} = $ENV{CI_COMMIT_REF_NAME} if $ENV{CI_COMMIT_REF_NAME};
+        $json->{commit_sha} = $ENV{CI_COMMIT_SHA} if $ENV{CI_COMMIT_SHA};
+    } elsif ($ENV{TF_BUILD} || $ENV{SYSTEM_TEAMFOUNDATIONSERVERURI}) {
+        $json->{service_name}   = 'azure-pipelines';
+        $json->{service_number} = $ENV{BUILD_BUILDID};
+        $json->{service_pull_request} = $ENV{SYSTEM_PULLREQUEST_PULLREQUESTNUMBER}
+            if $ENV{SYSTEM_PULLREQUEST_PULLREQUESTNUMBER};
+        $json->{commit_sha} = $ENV{BUILD_SOURCEVERSION} if $ENV{BUILD_SOURCEVERSION};
     } elsif ($ENV{GITHUB_TOKEN}) {
         # from info as at 2020-11-07
         # https://github.com/coverallsapp/github-action/blob/master/src/run.ts
@@ -167,16 +206,13 @@ sub get_config {
     } elsif ($ENV{GITHUB_ACTIONS} && $ENV{GITHUB_SHA}) {
         $json->{service_name}   = 'github-actions';
         $json->{service_number} = substr($ENV{GITHUB_SHA}, 0, 9);
-    } elsif ($ENV{SYSTEM_TEAMFOUNDATIONSERVERURI}) {
-        $json->{service_name}   = 'azure-pipelines';
-        $json->{service_number} = $ENV{BUILD_BUILDID};
     } else {
-        $is_travis = 0;
         $json->{service_name} = $config->{service_name} || $SERVICE_NAME;
         $json->{service_event_type} = 'manual';
     }
 
-    die "required repo_token in $CONFIG_FILE, make sure the environment var \"COVERALLS_REPO_TOKEN\" is set or launch via Travis" if !$json->{repo_token} && !$is_travis;
+    # Coveralls requires the token on every CI service, Travis CI included.
+    die "required repo_token in $CONFIG_FILE, make sure the environment var \"COVERALLS_REPO_TOKEN\" is set" if !$json->{repo_token};
 
     if (exists $ENV{COVERALLS_PERL_SERVICE_NAME} && $ENV{COVERALLS_PERL_SERVICE_NAME}) {
         $json->{service_name} = $ENV{COVERALLS_PERL_SERVICE_NAME};
@@ -216,7 +252,7 @@ sub report {
     }
 
     my ($json, $endpoint) = get_config();
-    $json->{git} = eval { get_git_info() } || {};
+    $json->{git} = apply_ci_git_info($json, eval { get_git_info() } || {});
     $json->{source_files} = \@sfs;
 
     my $coder = JSON::PP->new->ascii;
@@ -238,7 +274,7 @@ sub report {
     } else {
         print "error: " . $res->{message} . "\n";
     }
-    if($ENV{COVERALLS_PARALLEL}){
+    if($json->{parallel}){
         print "Parallel mode: True". "\n"
     }
     print("----------------------------\n");
@@ -308,7 +344,10 @@ calling it F<.github/workflows/ci.yml>:
 
 1. Add your repo to coveralls. L<https://coveralls.io/repos/new>
 
-2. Add setting to F<.travis.yaml> (C<before_install> and C<script> section)
+2. Set C<COVERALLS_REPO_TOKEN> in the settings of your repository on Travis CI, to the repo_token
+from your project page in coveralls. Coveralls requires it on Travis CI too.
+
+3. Add setting to F<.travis.yaml> (C<before_install> and C<script> section)
 
     language: perl
     perl:
@@ -319,9 +358,9 @@ calling it F<.github/workflows/ci.yml>:
     script:
       perl Build.PL && ./Build build && cover -test -report coveralls
 
-3. push new change to github
+4. push new change to github
 
-4. updated coveralls your project page
+5. updated coveralls your project page
 
 =begin html
 
@@ -365,7 +404,8 @@ Describe the particular tests being done, e.g. C<Unit> or C<Functional>.
 
 =head2 COVERALLS_PARALLEL
 
-Set this to C<true> in case you run your tests in a parallel environment. It is important to note though:
+Set this to C<true> in case you run your tests in a parallel environment. Any value other than
+empty, C<false> and C<0> turns it on. It is important to note though:
 If you use this feature, you must ensure that your CI solution calls the parallel webhook when everything is done. Moreover,
 regardless of what CI you use, you have to make sure that the C<build_number> is constant across the different jobs, otherwise
 coveralls is unable to group them together as one build.

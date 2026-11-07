@@ -59,7 +59,10 @@ jobs:
 
 1\. Add your repo to coveralls. [https://coveralls.io/repos/new](https://coveralls.io/repos/new)
 
-2\. Add setting to `.travis.yaml` (`before_install` and `script` section)
+2\. Set `COVERALLS_REPO_TOKEN` in the settings of your repository on Travis CI, to the repo\_token
+from your project page in coveralls. Coveralls requires it on Travis CI too.
+
+3\. Add setting to `.travis.yaml` (`before_install` and `script` section)
 
 ```
 language: perl
@@ -72,9 +75,9 @@ script:
   perl Build.PL && ./Build build && cover -test -report coveralls
 ```
 
-3\. push new change to github
+4\. push new change to github
 
-4\. updated coveralls your project page
+5\. updated coveralls your project page
 
 <div>
     <img src="http://kan.github.io/images/p5-ltsv.png" />
@@ -118,7 +121,8 @@ Describe the particular tests being done, e.g. `Unit` or `Functional`.
 
 ## COVERALLS\_PARALLEL
 
-Set this to `true` in case you run your tests in a parallel environment. It is important to note though:
+Set this to `true` in case you run your tests in a parallel environment. Any value other than
+empty, `false` and `0` turns it on. It is important to note though:
 If you use this feature, you must ensure that your CI solution calls the parallel webhook when everything is done. Moreover,
 regardless of what CI you use, you have to make sure that the `build_number` is constant across the different jobs, otherwise
 coveralls is unable to group them together as one build.

@@ -54,20 +54,29 @@
 
 `if / elsif` の連鎖で、**上にある条件が先に当たる。** 順序は次のとおり。
 
-1. `TRAVIS` → `travis-ci`（`repo_token` が無くても通る唯一の分岐）
+1. `TRAVIS` → `travis-ci`
 2. `CIRCLECI` → `circleci`
 3. `DRONE` → `drone`
 4. `SEMAPHORE` → `semaphore`（1.x と 2.x の両方の変数を見る）
 5. `JENKINS_URL` → `jenkins`
-6. `GITHUB_TOKEN` → `github`（`GITHUB_TOKEN` を `repo_token` に使う。PR 番号は `GITHUB_EVENT_PATH` の JSON から取る）
-7. `GITHUB_ACTIONS` かつ `GITHUB_SHA` → `github-actions`（`COVERALLS_REPO_TOKEN` を使う旧来の設定）
-8. `SYSTEM_TEAMFOUNDATIONSERVERURI` → `azure-pipelines`
-9. どれでもない → `.coveralls.yml` の `service_name` か `coveralls-perl`、`service_event_type` は `manual`
+6. `GITLAB_CI` → `gitlab-ci`
+7. `TF_BUILD` か `SYSTEM_TEAMFOUNDATIONSERVERURI` → `azure-pipelines`
+8. `GITHUB_TOKEN` → `github`（`GITHUB_TOKEN` を `repo_token` に使う。PR 番号は `GITHUB_EVENT_PATH` の JSON から取る）
+9. `GITHUB_ACTIONS` かつ `GITHUB_SHA` → `github-actions`（`COVERALLS_REPO_TOKEN` を使う旧来の設定）
+10. どれでもない → `.coveralls.yml` の `service_name` か `coveralls-perl`、`service_event_type` は `manual`
 
+- 6 と 7 を 8 より上に置くのは、GitLab や Azure のジョブにも別の用途で `GITHUB_TOKEN` が入っていることがあるため
 - 分岐の後で `COVERALLS_PERL_SERVICE_NAME` が `service_name` を上書きする
-- `repo_token` は `.coveralls.yml` の値を `COVERALLS_REPO_TOKEN` が上書きし、6 の分岐ではさらに
-  `GITHUB_TOKEN` が上書きする。Travis 以外で `repo_token` が無いと `die` する
-- ブランチ名は `git branch` の結果を、`GITHUB_REF` か `BUILD_SOURCEBRANCHNAME` があればそちらで上書きする
+- `repo_token` は `.coveralls.yml` の値を `COVERALLS_REPO_TOKEN` が上書きし、8 の分岐ではさらに
+  `GITHUB_TOKEN` が上書きする。**どの CI でも（Travis でも）`repo_token` が無いと `die` する**
+- 各 CI の環境変数と送る項目を足すときは、公式の coverage-reporter（`src/coverage_reporter/ci/*.cr`）を参考にする。
+  ただし次は意図して公式と違えているので、公式に合わせて戻さない
+  - Jenkins のブランチは `CHANGE_BRANCH` を `BRANCH_NAME` より先に見る（PR のビルドで `BRANCH_NAME` は `PR-<番号>` になるため）
+  - 既存の `service_name`（`azure-pipelines` など）と、Azure の `service_number` は、送ってきた値を変えない（Coveralls 上の既存のビルドと揃えるため）
+- `COVERALLS_PARALLEL` は空、`false`、`0` なら無効（`is_parallel`）
+- ブランチ名は `git branch` の結果を、`GITHUB_REF` か `BUILD_SOURCEBRANCHNAME` があればそちらで上書きする。
+  さらに `report` で、CI から取れた `service_branch` / `commit_sha` を `git.branch` / `git.head.id` に
+  上書きする（`apply_ci_git_info`）
 - **新しい CI を足すときは、分岐の位置で既存の CI の判定を奪わないか確認する。** 利用者向けの環境変数を
   足したら POD の `=head1 ENVIRONMENT` にも書く
 
@@ -99,9 +108,9 @@ prove -l t
 
 `perl Build.PL && ./Build build && ./Build test` でも同じテストが走る（CI はこちら）。
 
-- **`t/01_basic.t` で `get_config` を試すときは、判定の順序で上にある CI の環境変数を消す。**
-  消し方は `local $ENV{...} = undef` で、既存の subtest の書き方に合わせる。テスト自体が
-  GitHub Actions 上で走るため、`GITHUB_TOKEN` や `GITHUB_ACTIONS` が入っていると別の分岐に入る
+- **`t/01_basic.t` で `get_config` を試す subtest は、最初に `local @ENV{@CI_VARS};` で CI の環境変数を
+  すべて消す。** テスト自体が CI の上で走る。`GITHUB_TOKEN` や `GITHUB_ACTIONS` が入っていると、
+  別の分岐に入る。`get_config` / `get_git_info` が読む環境変数を足したら、`@CI_VARS` にも足す
 - `get_git_info` を呼ぶテストは、git の作業ツリーの中で実行する必要がある
 - テストから `report` を呼ばない（Coveralls へ実際に POST する）
 - CI の `master.yml` は perl latest のときだけ、このモジュール自身で自分のカバレッジを Coveralls へ送る
