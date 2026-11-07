@@ -7,6 +7,8 @@ Versions up to 0.32.1 were released from `Changes`, before this file existed.
 
 ## [Unreleased]
 
+- **Breaking:** Travis CI also needs `COVERALLS_REPO_TOKEN` (or `repo_token` in `.coveralls.yml`), as Coveralls requires it there too (#53)
+- Support GitLab CI, read `BUILD_NUMBER` on Jenkins, treat `COVERALLS_PARALLEL=false` and `0` as off, and send the branch, commit and pull request that CircleCI, Jenkins and Azure Pipelines give (#53)
 - Require Perl 5.20 or later, the version the current Devel::Cover needs (#57)
 - Do not send credentials in git remote URLs, and send each remote once with its fetch URL (#51)
 
