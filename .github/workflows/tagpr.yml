@@ -240,8 +240,11 @@ jobs:
             pending=true
           fi
           if [ "$pending" = false ]; then
-            ready=$(gh api --paginate "repos/$GH_REPO/pulls?state=open&per_page=100" \
-              --jq '.[] | select(any(.labels[]; .name == "tagpr") and (.head.ref | startswith("tagpr-from-v")) and (.draft | not)) | .number')
+            prs=$(gh api --paginate "repos/$GH_REPO/pulls?state=open&per_page=100" \
+              --jq '.[] | select(any(.labels[]; .name == "tagpr") and (.head.ref | startswith("tagpr-from-v"))) | "\(.number) \(.draft)"')
+            ready=$(awk '$2 == "false" { print $1 }' <<<"$prs")
+            # 下の「Close the release pull requests left with nothing to release」に渡す
+            echo "drafts=$(awk '$2 == "true" { print $1 }' <<<"$prs" | xargs)" >>"$GITHUB_OUTPUT"
             if [ -n "$ready" ]; then
               echo "release pull request #${ready//$'\n'/, #} is ready, so tagpr is run to rebuild it"
               pending=true
@@ -250,6 +253,31 @@ jobs:
             fi
           fi
           echo "pending=$pending" >>"$GITHUB_OUTPUT"
+
+      # **出すものが無い run は、draft のリリース PR を閉じる（issue #14）。** tagpr を走らせない
+      # ので、下の「Draft or ready」のステップは走らず、前のリリース PR も閉じない。ここに来るのは
+      # ready のリリース PR が無いときだけなので、開いているリリース PR はすべて draft。落ちた run
+      # が draft にしたもの（CHANGELOG が揃っていない）か、ラベルの付け外しで draft にされて、
+      # 作り直しが済んでいないもの。どちらも出すものが無いので、作り直しても落ちる。次に CHANGELOG を
+      # 書く PR が入れば、tagpr が新しいリリース PR を作る。
+      # 一覧は上のステップが取ったもの（ラベル `tagpr` があり、ブランチが `tagpr-from-v` で始まる
+      # draft の PR）を使い、取り直さない。ブランチは消さない。閉じるのが落ちても警告で済ませる
+      - name: Close the release pull requests left with nothing to release
+        if: steps.pending.outputs.pending == 'false' && steps.pending.outputs.drafts != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DRAFTS: ${{ steps.pending.outputs.drafts }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          for n in $DRAFTS; do
+            if gh pr close "$n" </dev/null --comment "出すものが無い（\`## [Unreleased]\` が空で、最新のタグより新しい版の節も無い）ので、draft のこのリリース PR を閉じます。作り直しても出すものが無く、CHANGELOG や lock が揃っていない可能性があります。マージしないでください。次に CHANGELOG を書く PR が入ると、新しいリリース PR が作られます。 $RUN_URL"; then
+              echo "::notice::#$n was a draft release pull request with nothing to release, so it is closed"
+            else
+              echo "::warning::#$n を閉じられなかった。手で閉じる"
+            fi
+          done
 
       # 落とせなくても tagpr は走らせる。マージの run はタグを打つだけで artifact を使わないので、
       # 前のジョブの一時的な失敗でタグを打ち損ねないようにする
