@@ -131,6 +131,14 @@ coveralls is unable to group them together as one build.
 
 See [https://docs.coveralls.io/parallel-build-webhook](https://docs.coveralls.io/parallel-build-webhook)
 
+## COVERALLS\_NO\_FAIL
+
+When the report cannot be sent to Coveralls (the upload fails, or there is no repo token),
+`cover -report coveralls` prints the error and exits with a non-zero status, so that the CI
+job fails. Set this to `true` to exit 0 instead, e.g. when coverage is optional for the build or
+pull requests from forks get no repo token. When `cover` makes several reports, the ones after
+`coveralls` are not made after a failure, so put `coveralls` last. Any value other than empty, `false` and `0` turns it on.
+
 # SEE ALSO
 
 [https://coveralls.io/](https://coveralls.io/)

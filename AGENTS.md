@@ -48,7 +48,10 @@
 2. `get_config` が環境変数と `.coveralls.yml` から、送信する JSON の CI 関連の項目とエンドポイントを決める
 3. `get_git_info` が `git log -1` / `git remote -v` / `git branch` を外部コマンドで呼んで git 情報を作る
    （失敗しても `eval` で空ハッシュになり、送信は続く）
-4. `HTTP::Tiny` で `<endpoint>/api/v1/jobs` へ `json=<JSON>` を form で POST し、結果を標準出力に出す
+4. `HTTP::Tiny` で `<endpoint>/api/v1/jobs` へ `json=<JSON>` を form で POST し、結果を標準出力に出す。
+   **送信に失敗したら `die` する**（`parse_response` が判定する）。`cover` は捕まえないので、終了コードが
+   0 以外になり CI のジョブが落ちる。`COVERALLS_NO_FAIL` が有効なら `die` せずに戻る。
+   `get_config` の `repo_token` が無いときの `die` も、`report` が捕まえて同じように扱う
 
 ### `get_config` の CI 判定
 
@@ -76,7 +79,7 @@
   ただし次は意図して公式と違えているので、公式に合わせて戻さない
   - Jenkins のブランチは `CHANGE_BRANCH` を `BRANCH_NAME` より先に見る（PR のビルドで `BRANCH_NAME` は `PR-<番号>` になるため）
   - 既存の `service_name`（`azure-pipelines` など）と、Azure の `service_number` は、送ってきた値を変えない（Coveralls 上の既存のビルドと揃えるため）
-- `COVERALLS_PARALLEL` は空、`false`、`0` なら無効（`is_parallel`）
+- `COVERALLS_PARALLEL` と `COVERALLS_NO_FAIL` は、空、`false`、`0` なら無効（`is_enabled`）
 - ブランチ名は `git branch` の結果を、`BUILD_SOURCEBRANCHNAME` があればそちらで上書きする。
   さらに `report` で、CI から取れた `service_branch` / `commit_sha` を `git.branch` / `git.head.id` に
   上書きする（`apply_ci_git_info`）
@@ -115,7 +118,8 @@ prove -l t
   すべて消す。** テスト自体が CI の上で走る。`GITHUB_TOKEN` や `GITHUB_ACTIONS` が入っていると、
   別の分岐に入る。`get_config` / `get_git_info` が読む環境変数を足したら、`@CI_VARS` にも足す
 - `get_git_info` を呼ぶテストは、git の作業ツリーの中で実行する必要がある
-- テストから `report` を呼ばない（Coveralls へ実際に POST する）
+- **テストから `report` を呼ぶときは、`HTTP::Tiny::post_form` を `local` で差し替える。** 差し替えないと
+  Coveralls へ実際に POST する。例は `t/01_basic.t` の「report exits non-zero when the upload fails」
 - CI の `master.yml` は perl latest のときだけ、このモジュール自身で自分のカバレッジを Coveralls へ送る
   （`DEVEL_COVER_SELF=1`）
 
