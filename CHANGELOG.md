@@ -7,6 +7,7 @@ Versions up to 0.32.1 were released from `Changes`, before this file existed.
 
 ## [Unreleased]
 
+- Do not wrap the commit ID, names, e-mail addresses and message from `git log` in single quotes on Windows (#54)
 - **Breaking:** `cover -report coveralls` exits with a non-zero status when the upload to Coveralls fails, so the CI job fails. Set `COVERALLS_NO_FAIL=1` to exit 0, which also covers a missing repo token, e.g. on pull requests from forks (#56)
 - **Breaking:** On GitHub Actions, report as `github` with the values of the official coverage-reporter: the build number is the run (`GITHUB_RUN_ID`) instead of the commit, pull requests send their number and source branch instead of `<number>/merge`, and parallel jobs can be grouped. GitHub Actions is detected by `GITHUB_ACTIONS` instead of `GITHUB_TOKEN`, and a repo token from `COVERALLS_REPO_TOKEN` or `.coveralls.yml` comes before `GITHUB_TOKEN`. Repositories that reported as `github-actions` now report as `github` (#52)
 - **Breaking:** Travis CI also needs `COVERALLS_REPO_TOKEN` (or `repo_token` in `.coveralls.yml`), as Coveralls requires it there too (#53)

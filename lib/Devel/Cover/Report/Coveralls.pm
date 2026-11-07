@@ -47,7 +47,9 @@ sub git_log {
 
     my $text = '';
 
-    my $command = "git log -1 --encoding=UTF-8 --pretty=format:'$format'";
+    # No quotes around the format: cmd.exe on Windows does not take single quotes as quotes, so git
+    # would print them. The formats used here have no spaces and no characters a shell changes.
+    my $command = "git log -1 --encoding=UTF-8 --pretty=format:$format";
     if (open(my $fh, '-|:encoding(UTF-8)', $command)) {
         $text = do { local $/; <$fh> };
         close $fh;
