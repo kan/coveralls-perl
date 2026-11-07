@@ -12,7 +12,8 @@ name: tagpr
 #   （`scripts/tagpr/release-prepare.mjs`）が直す
 # - リリース PR がマージされると、次の run がマージコミットにタグを打ち、`release` ジョブが
 #   `release-workflow` をそのタグで起動する
-# - 取り込み先の `workflow_dispatch` は、リリース PR の作り直し用（`tagpr:minor` を付けた後など）
+# - 取り込み先の `workflow_dispatch` は、リリース PR の作り直し用。版のラベル（`tagpr:minor` など）の
+#   付け外しでは、`tagpr-label.yml` がこれで起動し直す（#3）
 on:
   workflow_call:
     inputs:
@@ -37,11 +38,145 @@ permissions:
   contents: read
 
 jobs:
+  # **打たれなかったタグを、マージの run の再実行で打たせる（issue #4）。** リリース PR のマージの run が
+  # cancelled になると（下の tagpr のジョブの concurrency のコメント）、CHANGELOG に版の節があるのに
+  # タグが無いまま残る。そのときは、マージコミットの run を `gh run rerun` する。README にある手での
+  # 復旧と同じで、マージかどうかの確かめ、タグ、annotated への打ち直し、`tag` の出力、publish / release の
+  # 起動は、すべて tagpr と普段の経路が行う（取り込み先が `tag` を読むジョブも動く）。
+  #
+  # - 最新のタグより新しい、いちばん古い版の節（`missed-tags.mjs untagged`）について、最新のタグから
+  #   この run の commit までの間で、その版のリリース PR（ラベル `tagpr`、ブランチ `tagpr-from-v`）の
+  #   マージコミットを探す。その commit の CHANGELOG のいちばん新しい版が、その版であること
+  # - 再実行するのは、そのマージコミットでの push の run（呼ぶ側の workflow）で、tagpr のジョブが
+  #   cancelled だったときだけ（run 全体の結果は、呼ぶ側のほかのジョブの失敗でも failure になる）。
+  #   tagpr のジョブの前に run ごと取り消されたとき（ジョブが無いか skipped で、run が cancelled）も含む。
+  #   取り消されたジョブと落ちたジョブだけを再実行する（`--failed`）。tagpr のジョブが落ちていたら、
+  #   原因を直してから手で再実行する（ここは理由を出して落ちる）
+  # - 再実行を頼んだ（またはもう走っている）run では、tagpr を走らせない。タグがまだ無いので
+  #   `release-prepare.mjs` の検査で落ちるだけになる。代わりに、再実行が終わるのを待ってから、呼ぶ側の
+  #   workflow をリリースのブランチで `workflow_dispatch` し直す。次の run が、残りのタグの無い版を
+  #   同じように拾い、無ければリリース PR を作り直す。このジョブは group の外なので、待っても詰まらない
+  # - この run の commit そのものがマージコミットなら何もしない（ふつうの経路で tagpr が打つ）
+  # - **確かめられないとき（マージが見つからない、run が無い、もう成功していた）は、警告だけで
+  #   tagpr を走らせる。** 本当にタグが無ければ `release-prepare.mjs` が今までどおり落ちて知らせる。
+  #   マージの直後は PR とマージコミットの紐付けが間に合わないことがあり、そこで赤にしない
+  # - **このジョブが落ちても tagpr は走らせる**（continue-on-error）
+  # - tagpr のジョブに `actions: write` を渡さないよう、ジョブを分けてある。concurrency の group には
+  #   入れない（入れると、待っているマージの run をこのジョブが置き換えうる）
+  missed:
+    name: Re-run the run of a merge whose tag was missed
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # 再実行が終わるのを待つ
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: write  # gh run rerun、workflow_dispatch
+    outputs:
+      rerun: ${{ steps.missed.outputs.rerun }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - name: Re-run the run of a merge whose tag was missed
+        id: missed
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          refs=$(gh api --paginate "repos/$GH_REPO/git/matching-refs/tags/" --jq '.[].ref')
+          versions=$(node scripts/tagpr/missed-tags.mjs untagged <<<"$refs")
+          if [ -z "$versions" ]; then
+            echo "no release is missing its tag"
+            exit 0
+          fi
+          oldest=$(head -n 1 <<<"$versions")
+          base=$(node scripts/tagpr/missed-tags.mjs latest <<<"$refs")
+          echo "CHANGELOG.md has versions newer than the latest tag v$base: ${versions//$'\n'/, }"
+
+          # 最新のタグからこの run の commit までの commit（古い順）から、その版のリリース PR のマージを探す
+          merge=
+          for sha in $(gh api --paginate "repos/$GH_REPO/compare/v$base...$GITHUB_SHA" --jq '.commits[].sha'); do
+            pr=$(gh api "repos/$GH_REPO/commits/$sha/pulls" \
+              --jq '.[] | select(.merged_at != null and .merge_commit_sha == "'"$sha"'" and any(.labels[]; .name == "tagpr") and (.head.ref | startswith("tagpr-from-v"))) | .number' | head -n 1)
+            [ -n "$pr" ] || continue
+            v=$(gh api "repos/$GH_REPO/contents/CHANGELOG.md?ref=$sha" -H 'Accept: application/vnd.github.raw' \
+              | node scripts/tagpr/missed-tags.mjs newest)
+            echo "$sha is the merge of release pull request #$pr (CHANGELOG.md: ${v:-no version})"
+            if [ "$v" = "$oldest" ]; then
+              merge=$sha
+              break
+            fi
+          done
+          if [ -z "$merge" ]; then
+            echo "::warning::CHANGELOG.md has \"## [$oldest]\", newer than the latest tag v$base, but no merged release pull request between v$base and $GITHUB_SHA has it as its newest version (yet), so nothing is re-run"
+            exit 0
+          fi
+          if [ "$merge" = "$GITHUB_SHA" ]; then
+            echo "this is the run of the merge of $oldest, so tagpr makes the tag"
+            exit 0
+          fi
+
+          # マージコミットでの、呼ぶ側の workflow の push の run（いちばん新しいもの）
+          self=$(gh api "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID" --jq '"\(.workflow_id) \(.path)"')
+          read -r workflow path <<<"$self"
+          # 取得が落ちたらステップも落とす（`read < <(...)` に直に書くと、落ちても空のまま進む）
+          run=$(gh api "repos/$GH_REPO/actions/workflows/$workflow/runs?head_sha=$merge&event=push&per_page=1" \
+            --jq '.workflow_runs[0] // empty | "\(.id) \(.run_attempt) \(.status) \(.conclusion) \(.html_url)"')
+          read -r id attempt status conclusion url <<<"$run"
+          if [ -z "$id" ]; then
+            echo "::warning::no push run of this workflow for the merge of $oldest ($merge), so nothing is re-run"
+            exit 0
+          fi
+          if [ "$status" = completed ]; then
+            # tagpr のジョブ（呼ぶ側のジョブ名 / このジョブ名）の結果。最新の attempt のもの。
+            # run がその前に取り消されると、ジョブが無いか、呼ぶ側のジョブが skipped になる
+            job=$(gh api --paginate "repos/$GH_REPO/actions/runs/$id/jobs" \
+              --jq '.jobs[] | select(.name | endswith("Prepare the release pull request")) | .conclusion' | head -n 1)
+            if { [ -z "$job" ] || [ "$job" = skipped ]; } && [ "$conclusion" = cancelled ]; then
+              job=cancelled
+            fi
+            case "$job" in
+              cancelled)
+                gh run rerun --failed "$id"
+                echo "::notice::the tagpr job of the run of the merge of $oldest was cancelled before it made the tag, so it is re-run ($url)"
+                ;;
+              success)
+                echo "the run of the merge of $oldest has finished its tagpr job since ($url), so nothing is re-run"
+                exit 0
+                ;;
+              *)
+                echo "::error::the tagpr job of the run of the merge of $oldest ended ${job:-without running}, without making the tag ($url). Fix the cause and re-run it"
+                exit 1
+                ;;
+            esac
+          else
+            # もう再実行されている（ほかの run が頼んだ）。その attempt が終わるのを待つ
+            attempt=$((attempt - 1))
+            echo "::notice::the run of the merge of $oldest is already $status ($url)"
+          fi
+          echo "rerun=true" >>"$GITHUB_OUTPUT"
+
+          # 再実行が終わるのを待ってから、呼ぶ側の workflow を起動し直す（残りの版とリリース PR のため）
+          until now=$(gh api "repos/$GH_REPO/actions/runs/$id" --jq '"\(.run_attempt) \(.status)"') \
+            && read -r a s <<<"$now" && [ "$a" -gt "$attempt" ] && [ "$s" = completed ]; do
+            sleep 20
+          done
+          gh workflow run "${path##*/}" --ref "$GITHUB_REF_NAME"
+          echo "::notice::the run of the merge of $oldest finished; started ${path##*/} on $GITHUB_REF_NAME again to rebuild the release pull request. tagpr is not run here"
+
   tagpr:
     name: Prepare the release pull request
+    needs: missed
     # 呼ぶ側の前のジョブ（クレジットなど）が落ちても走らせる。`if` が無いと暗黙の `success()` が
-    # 呼ぶ側の `needs` の結果まで見て、マージの run でタグを打たずに skipped になる
-    if: ${{ !cancelled() }}
+    # 呼ぶ側の `needs` の結果まで見て、マージの run でタグを打たずに skipped になる。
+    # マージの run を再実行したときは走らせない（上の missed のジョブ）
+    if: ${{ !cancelled() && needs.missed.outputs.rerun != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.timeout-minutes }}
     # **並べず、止めない。** 並べると同じブランチを作り直し合う。止めると、タグを打った直後に
@@ -50,10 +185,10 @@ jobs:
     # この workflow に固有の名前にしてある。
     #
     # それでも GitHub は待っている run を 1 つしか持たない。リリース PR のマージの run が
-    # 待っている間に push が来ると、その run は cancelled になりタグが打たれない。後の push の
-    # run は `release-prepare.mjs` の検査（最新のタグより新しい版の節がある）で赤になるので、
-    # マージコミットの run を再実行する（tagpr-scripts の README）。新しいリリース PR をマージして
-    # やり過ごさない
+    # 待っている間に push が来ると、その run は cancelled になりタグが打たれない。後の run の
+    # missed のジョブが、その run を再実行する（#4）。再実行できなかったときは
+    # `release-prepare.mjs` の検査（最新のタグより新しい版の節がある）で赤になるので、手で
+    # 再実行する（tagpr-scripts の README）。新しいリリース PR をマージしてやり過ごさない
     concurrency:
       group: tagpr-scripts-release-pr
       cancel-in-progress: false
@@ -95,19 +230,25 @@ jobs:
           pending=$(node scripts/tagpr/release-pending.mjs <<<"$refs" 2>"$reason") || { cat "$reason" >&2; exit 1; }
           cat "$reason"
           case "$pending" in
-            true) ;;
-            false)
-              ready=$(gh api --paginate "repos/$GH_REPO/pulls?state=open&per_page=100" \
-                --jq '.[] | select(any(.labels[]; .name == "tagpr") and (.head.ref | startswith("tagpr-from-v")) and (.draft | not)) | .number')
-              if [ -n "$ready" ]; then
-                echo "release pull request #${ready//$'\n'/, #} is ready, so tagpr is run to rebuild it"
-                pending=true
-              else
-                echo "::notice::$(cat "$reason"). tagpr is not run"
-              fi
-              ;;
+            true | false) ;;
             *) echo "::error::release-pending.mjs printed \"$pending\", not true or false"; exit 1 ;;
           esac
+          # 手や tagpr-label.yml からの起動は作り直しの依頼なので、必ず走らせる（tagpr-label.yml は
+          # 起動の前にリリース PR を draft にするので、下の ready の PR の判定では拾えない）
+          if [ "$pending" = false ] && [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            echo "started by workflow_dispatch, so tagpr is run to rebuild the release pull request"
+            pending=true
+          fi
+          if [ "$pending" = false ]; then
+            ready=$(gh api --paginate "repos/$GH_REPO/pulls?state=open&per_page=100" \
+              --jq '.[] | select(any(.labels[]; .name == "tagpr") and (.head.ref | startswith("tagpr-from-v")) and (.draft | not)) | .number')
+            if [ -n "$ready" ]; then
+              echo "release pull request #${ready//$'\n'/, #} is ready, so tagpr is run to rebuild it"
+              pending=true
+            else
+              echo "::notice::$(cat "$reason"). tagpr is not run"
+            fi
+          fi
           echo "pending=$pending" >>"$GITHUB_OUTPUT"
 
       # 落とせなくても tagpr は走らせる。マージの run はタグを打つだけで artifact を使わないので、

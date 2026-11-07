@@ -74,7 +74,7 @@ before(() => {
   shaB = git(upstream, 'rev-parse', 'HEAD');
 });
 
-const caller = (sha) => `jobs:\n  tagpr:\n    uses: kan/tagpr-scripts/.github/workflows/tagpr.yml@${sha}\n`;
+const caller = (sha, workflow = 'tagpr.yml') => `jobs:\n  tagpr:\n    uses: kan/tagpr-scripts/.github/workflows/${workflow}@${sha}\n`;
 
 /** upstream の A を `scripts/tagpr/` に置いた取り込み先を作り、files を足して commit する */
 function makeCaller(files) {
@@ -163,4 +163,31 @@ test('fails when two workflows call different commits', () => {
   );
   assert.equal(r.status, 1);
   assert.match(r.stderr, /different commits/);
+});
+
+test('checks a repo that calls only tagpr-label.yml', () => {
+  const r = verify(makeCaller({ '.github/workflows/tagpr-label.yml': caller(shaB, 'tagpr-label.yml') }));
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /does not match/);
+});
+
+test('fails when tagpr.yml and tagpr-label.yml call different commits', () => {
+  const r = verify(
+    makeCaller({
+      '.github/workflows/tagpr.yml': caller(shaA),
+      '.github/workflows/tagpr-label.yaml': caller(shaB, 'tagpr-label.yml'),
+    }),
+  );
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /different commits[\s\S]*tagpr-label\.yaml/);
+});
+
+test('passes when tagpr.yml and tagpr-label.yml are called at the pulled commit', () => {
+  const r = verify(
+    makeCaller({
+      '.github/workflows/tagpr.yml': caller(shaA),
+      '.github/workflows/tagpr-label.yml': caller(shaA, 'tagpr-label.yml'),
+    }),
+  );
+  assert.equal(r.status, 0, r.stderr);
 });
