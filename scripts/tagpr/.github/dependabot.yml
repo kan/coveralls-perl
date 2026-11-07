@@ -1,0 +1,8 @@
+version: 2
+
+# 依存は無いので、見るのは Actions だけ。
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
