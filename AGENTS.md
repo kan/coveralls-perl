@@ -61,20 +61,23 @@
 5. `JENKINS_URL` → `jenkins`
 6. `GITLAB_CI` → `gitlab-ci`
 7. `TF_BUILD` か `SYSTEM_TEAMFOUNDATIONSERVERURI` → `azure-pipelines`
-8. `GITHUB_TOKEN` → `github`（`GITHUB_TOKEN` を `repo_token` に使う。PR 番号は `GITHUB_EVENT_PATH` の JSON から取る）
-9. `GITHUB_ACTIONS` かつ `GITHUB_SHA` → `github-actions`（`COVERALLS_REPO_TOKEN` を使う旧来の設定）
-10. どれでもない → `.coveralls.yml` の `service_name` か `coveralls-perl`、`service_event_type` は `manual`
+8. `GITHUB_ACTIONS` → `github`。ビルド番号は `GITHUB_RUN_ID`。PR 番号は `GITHUB_REF` の `refs/pull/<番号>/` から取る。
+   `pull_request_target` では取れないので、`GITHUB_EVENT_PATH` の JSON の `pull_request.number` を使う
+9. どれでもない → `.coveralls.yml` の `service_name` か `coveralls-perl`、`service_event_type` は `manual`
 
-- 6 と 7 を 8 より上に置くのは、GitLab や Azure のジョブにも別の用途で `GITHUB_TOKEN` が入っていることがあるため
+- **GitHub Actions は `GITHUB_TOKEN` ではなく `GITHUB_ACTIONS` で判定する。** ほかの CI のジョブにも、
+  別の用途で `GITHUB_TOKEN` が入っていることがあるため
 - 分岐の後で `COVERALLS_PERL_SERVICE_NAME` が `service_name` を上書きする
-- `repo_token` は `.coveralls.yml` の値を `COVERALLS_REPO_TOKEN` が上書きし、8 の分岐ではさらに
-  `GITHUB_TOKEN` が上書きする。**どの CI でも（Travis でも）`repo_token` が無いと `die` する**
+- `repo_token` は `.coveralls.yml` の値を `COVERALLS_REPO_TOKEN` が上書きする。8 の分岐では、どちらも
+  無いときだけ `GITHUB_TOKEN` を使う。**どの CI でも（Travis でも）`repo_token` が無いと `die` する**
+- 8 の `service_job_id` は `GITHUB_JOB` で、`COVERALLS_FLAG_NAME` があれば `<GITHUB_JOB>-<FLAG_NAME>` にする。
+  マトリクスの各ジョブは `GITHUB_JOB` が同じなので、並列のビルドでジョブを区別するため（公式は `GITHUB_JOB` のまま）
 - 各 CI の環境変数と送る項目を足すときは、公式の coverage-reporter（`src/coverage_reporter/ci/*.cr`）を参考にする。
   ただし次は意図して公式と違えているので、公式に合わせて戻さない
   - Jenkins のブランチは `CHANGE_BRANCH` を `BRANCH_NAME` より先に見る（PR のビルドで `BRANCH_NAME` は `PR-<番号>` になるため）
   - 既存の `service_name`（`azure-pipelines` など）と、Azure の `service_number` は、送ってきた値を変えない（Coveralls 上の既存のビルドと揃えるため）
 - `COVERALLS_PARALLEL` は空、`false`、`0` なら無効（`is_parallel`）
-- ブランチ名は `git branch` の結果を、`GITHUB_REF` か `BUILD_SOURCEBRANCHNAME` があればそちらで上書きする。
+- ブランチ名は `git branch` の結果を、`BUILD_SOURCEBRANCHNAME` があればそちらで上書きする。
   さらに `report` で、CI から取れた `service_branch` / `commit_sha` を `git.branch` / `git.head.id` に
   上書きする（`apply_ci_git_info`）
 - **新しい CI を足すときは、分岐の位置で既存の CI の判定を奪わないか確認する。** 利用者向けの環境変数を

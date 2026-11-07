@@ -4,6 +4,7 @@ use utf8;
 use Test::More;
 
 use FindBin;
+use File::Temp ();
 use Devel::Cover::Report::Coveralls;
 
 my $normal_endpoint = 'https://coveralls.io/api/v1/jobs';
@@ -21,8 +22,8 @@ my @CI_VARS = qw(
     GITLAB_CI CI_PIPELINE_IID CI_JOB_NAME CI_MERGE_REQUEST_IID CI_COMMIT_REF_NAME CI_COMMIT_SHA
     TF_BUILD SYSTEM_TEAMFOUNDATIONSERVERURI BUILD_BUILDID SYSTEM_PULLREQUEST_PULLREQUESTNUMBER
     BUILD_SOURCEVERSION BUILD_SOURCEBRANCHNAME
-    GITHUB_TOKEN GITHUB_RUN_ID GITHUB_EVENT_NAME GITHUB_EVENT_PATH GITHUB_ACTIONS GITHUB_SHA
-    GITHUB_REF
+    GITHUB_ACTIONS GITHUB_TOKEN GITHUB_RUN_ID GITHUB_RUN_ATTEMPT GITHUB_JOB GITHUB_SHA
+    GITHUB_REF GITHUB_REF_NAME GITHUB_HEAD_REF GITHUB_EVENT_PATH
     COVERALLS_REPO_TOKEN COVERALLS_ENDPOINT COVERALLS_FLAG_NAME COVERALLS_PARALLEL
     COVERALLS_PERL_SERVICE_NAME
 );
@@ -58,24 +59,88 @@ subtest 'get_config extra env (travis)' => sub {
     is $endpoint, $diff_endpoint . $endpoint_stem, 'new endpoint';
 };
 
-subtest 'get_config github' => sub {
+subtest 'get_config github actions (push)' => sub {
     local @ENV{@CI_VARS};
-    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
-    local $ENV{GITHUB_ACTIONS}  = 1;
-    local $ENV{GITHUB_SHA}      = '123456789';
+    local $ENV{GITHUB_ACTIONS} = 'true';
+    local $ENV{GITHUB_TOKEN} = 'from-github';
+    local $ENV{GITHUB_RUN_ID} = '123456789';
+    local $ENV{GITHUB_RUN_ATTEMPT} = '2';
+    local $ENV{GITHUB_JOB} = 'test';
+    local $ENV{GITHUB_SHA} = 'abc123';
+    local $ENV{GITHUB_REF} = 'refs/heads/master';
+    local $ENV{GITHUB_REF_NAME} = 'master';
     my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
-    is $got->{service_name}, 'github-actions', 'config service_name';
-    is $got->{service_number}, '123456789', 'config service_number';
+    is $got->{service_name}, 'github', 'service_name';
+    is $got->{repo_token}, 'from-github', 'GITHUB_TOKEN without COVERALLS_REPO_TOKEN';
+    is $got->{service_number}, '123456789', 'service_number is the run';
+    is $got->{service_attempt}, '2', 'service_attempt';
+    is $got->{service_job_id}, 'test', 'service_job_id is the job';
+    is $got->{service_branch}, 'master', 'service_branch';
+    is $got->{commit_sha}, 'abc123', 'commit_sha';
+    ok !exists $got->{service_pull_request}, 'not a pull request';
     is $endpoint, $normal_endpoint;
+
+    local $ENV{COVERALLS_REPO_TOKEN} = 'from-coveralls';
+    local $ENV{COVERALLS_FLAG_NAME} = 'perl-5.20';
+    ($got) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{repo_token}, 'from-coveralls', 'COVERALLS_REPO_TOKEN first';
+    is $got->{service_job_id}, 'test-perl-5.20', 'the flag name tells the legs of a matrix apart';
 };
 
-subtest 'get_config github actions improved' => sub {
+subtest 'get_config github actions (pull request)' => sub {
     local @ENV{@CI_VARS};
-    local $ENV{GITHUB_TOKEN} = 'abcdef';
-    local $ENV{GITHUB_RUN_ID} = '123456789';
-    my ($got, $endpoint) = Devel::Cover::Report::Coveralls::get_config();
-    is $got->{service_name}, 'github', 'config service_name';
-    is $got->{service_job_id}, '123456789', 'config service_job_id';
+    local $ENV{GITHUB_ACTIONS} = 'true';
+    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
+    local $ENV{GITHUB_REF} = 'refs/pull/49/merge';
+    local $ENV{GITHUB_REF_NAME} = '49/merge';
+    local $ENV{GITHUB_HEAD_REF} = 'feature';
+    my ($got) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{service_pull_request}, '49', 'service_pull_request from GITHUB_REF';
+    is $got->{service_branch}, 'feature', 'the source branch, not 49/merge';
+    ok !exists $got->{service_job_id}, 'no service_job_id without GITHUB_JOB';
+
+    local $ENV{COVERALLS_FLAG_NAME} = 'unit';
+    ($got) = Devel::Cover::Report::Coveralls::get_config();
+    ok !exists $got->{service_job_id}, 'nor with only the flag name';
+};
+
+subtest 'get_config github actions (pull_request_target)' => sub {
+    local @ENV{@CI_VARS};
+    local $ENV{GITHUB_ACTIONS} = 'true';
+    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
+    local $ENV{GITHUB_REF} = 'refs/heads/master';
+    local $ENV{GITHUB_HEAD_REF} = 'feature';
+    local $ENV{GITHUB_EVENT_PATH} = "$FindBin::Bin/no-such-event.json";
+    my ($got) = Devel::Cover::Report::Coveralls::get_config();
+    ok !exists $got->{service_pull_request}, 'no number without an event file';
+
+    my $dir = File::Temp::tempdir(CLEANUP => 1);
+    my $event = "$dir/event.json";
+    open my $fh, '>', $event or die $!;
+    print $fh '{"pull_request":{"number":12}}';
+    close $fh;
+    local $ENV{GITHUB_EVENT_PATH} = $event;
+    ($got) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{service_pull_request}, '12', 'the number from the event payload';
+    is $got->{service_branch}, 'feature', 'service_branch';
+};
+
+subtest 'get_config github actions (older runner)' => sub {
+    local @ENV{@CI_VARS};
+    local $ENV{GITHUB_ACTIONS} = 'true';
+    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
+    local $ENV{GITHUB_REF} = 'refs/heads/release/1.0';
+    my ($got) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{service_branch}, 'release/1.0', 'the branch from GITHUB_REF without GITHUB_REF_NAME';
+};
+
+subtest 'GITHUB_TOKEN alone is not GitHub Actions' => sub {
+    local @ENV{@CI_VARS};
+    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
+    local $ENV{GITHUB_TOKEN} = 'set for another tool';
+    my ($got) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{service_name}, 'coveralls-perl', 'service_name';
+    is $got->{repo_token}, 'abcdef', 'the token is not GITHUB_TOKEN';
 };
 
 subtest 'get_config azure' => sub {

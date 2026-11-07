@@ -97,9 +97,7 @@ sub get_git_info {
     $branch =~ s/^\* //;
     $git->{branch} = $branch;
 
-    if ($ENV{GITHUB_REF} && $ENV{GITHUB_REF} =~ m![^/]+/[^/]+/(.+)$!) {
-        $git->{branch} = $1;
-    } elsif ($ENV{BUILD_SOURCEBRANCHNAME}) {
+    if ($ENV{BUILD_SOURCEBRANCHNAME}) {
         $git->{branch} = $ENV{BUILD_SOURCEBRANCHNAME};
     }
 
@@ -111,6 +109,16 @@ sub get_git_info {
 sub is_parallel {
     my $value = shift;
     return defined $value && $value ne '' && $value ne 'false' && $value ne '0';
+}
+
+# The number of the pull request in the event payload of GitHub Actions, or undef.
+sub github_event_pull_request {
+    my $path = shift;
+    return undef unless $path;
+    open my $fh, '<:raw', $path or return undef;
+    my $event = eval { local $/; decode_json scalar <$fh> } or return undef;
+    my $number = ref $event->{pull_request} eq 'HASH' && $event->{pull_request}{number};
+    return $number && $number =~ /^\d+$/ ? $number : undef;
 }
 
 # Put the branch and the commit that the CI service gave (get_config) into the
@@ -169,8 +177,6 @@ sub get_config {
         my $branch = $ENV{CHANGE_BRANCH} || $ENV{BRANCH_NAME};
         $json->{service_branch} = $branch if $branch;
         $json->{service_pull_request} = $ENV{CHANGE_ID} if $ENV{CHANGE_ID};
-    # GitLab CI and Azure Pipelines come before the GitHub cases: their jobs may have GITHUB_TOKEN
-    # set for another reason.
     } elsif ($ENV{GITLAB_CI}) {
         $json->{service_name} = 'gitlab-ci';
         $json->{service_number} = $ENV{CI_PIPELINE_IID} if $ENV{CI_PIPELINE_IID};
@@ -184,28 +190,32 @@ sub get_config {
         $json->{service_pull_request} = $ENV{SYSTEM_PULLREQUEST_PULLREQUESTNUMBER}
             if $ENV{SYSTEM_PULLREQUEST_PULLREQUESTNUMBER};
         $json->{commit_sha} = $ENV{BUILD_SOURCEVERSION} if $ENV{BUILD_SOURCEVERSION};
-    } elsif ($ENV{GITHUB_TOKEN}) {
-        # from info as at 2020-11-07
-        # https://github.com/coverallsapp/github-action/blob/master/src/run.ts
-        # https://github.com/nickmerwin/node-coveralls/blob/master/lib/getOptions.js
-        # we use GITHUB_TOKEN just to differentiate from still-working setup
-        # in next option, but which requires a secret setting up
+    } elsif ($ENV{GITHUB_ACTIONS}) {
+        # The values of the official coverage-reporter (src/coverage_reporter/ci/github.cr).
         $json->{service_name} = 'github';
-        $json->{repo_token} = $ENV{GITHUB_TOKEN};
-        $json->{service_job_id} = $ENV{GITHUB_RUN_ID};
-        if (($ENV{GITHUB_EVENT_NAME}||'') eq 'pull_request') {
-            if (open my $fh, '<:raw', $ENV{GITHUB_EVENT_PATH}) {
-                local $/;
-                my $text = <$fh>;
-                my $pr = decode_json $text;
-                if (my ($match) = ($pr->{number}||'') =~ /(\d+)$/) {
-                    $json->{service_pull_request} = $match;
-                }
-            }
+        # Coveralls accepts the GITHUB_TOKEN of the workflow in place of the repo token.
+        $json->{repo_token} ||= $ENV{GITHUB_TOKEN};
+        # The run groups the jobs of a parallel build, and the "done" webhook names it.
+        $json->{service_number} = $ENV{GITHUB_RUN_ID} if $ENV{GITHUB_RUN_ID};
+        $json->{service_attempt} = $ENV{GITHUB_RUN_ATTEMPT} if $ENV{GITHUB_RUN_ATTEMPT};
+        if ($ENV{GITHUB_JOB}) {
+            # Every leg of a matrix has the same GITHUB_JOB; the flag name tells them apart.
+            $json->{service_job_id} = $ENV{COVERALLS_FLAG_NAME}
+                ? "$ENV{GITHUB_JOB}-$ENV{COVERALLS_FLAG_NAME}" : $ENV{GITHUB_JOB};
         }
-    } elsif ($ENV{GITHUB_ACTIONS} && $ENV{GITHUB_SHA}) {
-        $json->{service_name}   = 'github-actions';
-        $json->{service_number} = substr($ENV{GITHUB_SHA}, 0, 9);
+        my $ref = $ENV{GITHUB_REF} // '';
+        if ($ref =~ m!^refs/pull/(\d+)/!) {
+            $json->{service_pull_request} = $1;
+        } elsif (my $number = github_event_pull_request($ENV{GITHUB_EVENT_PATH})) {
+            # pull_request_target runs on the base branch, so GITHUB_REF is not refs/pull/.
+            $json->{service_pull_request} = $number;
+        }
+        # GITHUB_HEAD_REF is the source branch of a pull request; GITHUB_REF_NAME is "<number>/merge"
+        # there. Older runners do not set GITHUB_REF_NAME.
+        my ($from_ref) = $ref =~ m!^refs/(?:heads|tags)/(.+)$!;
+        my $branch = $ENV{GITHUB_HEAD_REF} || $ENV{GITHUB_REF_NAME} || $from_ref;
+        $json->{service_branch} = $branch if $branch;
+        $json->{commit_sha} = $ENV{GITHUB_SHA} if $ENV{GITHUB_SHA};
     } else {
         $json->{service_name} = $config->{service_name} || $SERVICE_NAME;
         $json->{service_event_type} = 'manual';
@@ -401,6 +411,8 @@ won't change, and will be correct.
 =head2 COVERALLS_FLAG_NAME
 
 Describe the particular tests being done, e.g. C<Unit> or C<Functional>.
+On GitHub Actions it is also added to the job ID, so give each leg of a matrix that reports
+to the same parallel build its own flag name.
 
 =head2 COVERALLS_PARALLEL
 
