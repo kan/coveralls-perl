@@ -1,11 +1,9 @@
 name: master
 
+# Changes go in by pull request (AGENTS.md), so a working branch is tested by `pull_request`.
 on:
   push:
-    branches:
-      - '*'
-    tags-ignore:
-      - '*'
+    branches: [master]
   pull_request:
 
 permissions:
@@ -73,3 +71,46 @@ jobs:
             perl Build.PL
             ./Build build
             ./Build test
+
+  # The tarball that publish.yml uploads, made the same way ("Build the tarball" there; change both
+  # together), so that what goes into the distribution is checked before a release: scripts/ must
+  # stay out (minil.toml).
+  dist:
+    runs-on: ubuntu-latest
+
+    steps:
+      # The whole history, as in publish.yml: Minilla makes x_contributors from `git log`.
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: shogo82148/actions-setup-perl@v1.44.4
+        with:
+          perl-version: '5.42'
+      # Only what `minil dist` needs: Minilla, the markdown_maker of minil.toml, and
+      # Module::Build::Tiny for the Build.PL it runs.
+      - name: Install Minilla
+        run: cpanm --quiet --notest Minilla Pod::Markdown::Github Module::Build::Tiny
+      - name: Build the tarball
+        run: |
+            minil dist --no-test
+            files="$(tar tzf Devel-Cover-Report-Coveralls-*.tar.gz)"
+            printf '%s\n' "$files"
+            if printf '%s\n' "$files" | grep -q '^[^/]*/scripts/'; then
+              echo "the tarball contains scripts/" >&2
+              exit 1
+            fi
+
+  # scripts/tagpr/ must be the tagpr-scripts commit that tagpr.yml calls (scripts/tagpr/README.md).
+  tagpr-subtree:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - name: Check scripts/tagpr/ against the tagpr workflow pin
+        run: node scripts/tagpr/verify-subtree.mjs

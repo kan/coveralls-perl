@@ -1,0 +1,222 @@
+name: publish
+
+# **Ships a tagged version to CPAN.** Started by `tagpr.yml` with `workflow_dispatch` on the tag it
+# made (a tag pushed with GITHUB_TOKEN does not start `push: tags`). `push: tags` is for a tag
+# pushed by hand.
+#
+# **One job per permission.** Dependency code (Minilla, the modules from CPAN, the tests) runs only
+# in `build`, which can write nothing.
+#
+# | Job | Permissions | Does |
+# |---|---|---|
+# | `build` | `contents: read` | Checks, tests, `minil dist`. Leaves the release notes (`notes`) and the tarball (`dist`) as artifacts |
+# | `upload` | none; the PAUSE secrets of the `cpan` environment | Sends the tarball to PAUSE with curl. No checkout, nothing from CPAN |
+# | `release` | `contents: write` | Creates the GitHub release from `notes` |
+#
+# **An upload cannot be taken back.** PAUSE never takes the same file name twice, so a version that
+# went out broken needs a new version. Everything that can be checked is checked in `build`.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+# **One run per tag, never cancelled.** A run stopped after the upload leaves a version on CPAN
+# with no GitHub release.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  build:
+    # **Only on a tag.** `workflow_dispatch` can be started on a branch too.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # `fetch-depth: 0`: Minilla makes x_contributors of META.json from `git log`, so a shallow
+      # clone would ship an empty list.
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+
+      # **A tag that already has a release went out already.** PAUSE never takes the same file
+      # twice, so a second run on the tag (a hand-pushed tag also started with `gh workflow run`,
+      # or "Re-run all jobs" of a finished run) stops here. To run only the failed `release` job,
+      # use `gh run rerun <run-id> --failed`.
+      - name: Check that the tag has no release yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "$TAG already has a GitHub release; it was uploaded to PAUSE already" >&2
+            exit 1
+          fi
+
+      # The next two steps use nothing but the shell and Node's built-in modules, so they come
+      # before anything from CPAN: a wrong tag pushed by hand fails here.
+      #
+      # **The tag and every versionFile of `.tagpr` must agree.** The release pull request is
+      # checked by `release-prepare.mjs` with the same function; this catches a tag pushed by hand.
+      - name: Check the tag against the version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          node --input-type=module -e '
+            import { ReleaseError } from "./scripts/tagpr/changelog.mjs";
+            import { checkVersionFiles } from "./scripts/tagpr/version-files.mjs";
+            try {
+              checkVersionFiles(process.env.TAG.replace(/^v/, ""));
+            } catch (e) {
+              if (!(e instanceof ReleaseError)) throw e;
+              console.error(`${process.env.TAG}: ${e.message}`);
+              process.exit(1);
+            }
+          '
+
+      # **The release notes are the CHANGELOG section.** No section, no upload.
+      - name: Extract the CHANGELOG section
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/notes"
+          node scripts/tagpr/release-notes.mjs "$TAG" > "$RUNNER_TEMP/notes/release-notes.md"
+
+      # **Before anything from CPAN is installed**, so that no dependency code can rewrite the notes.
+      # `overwrite` is for "Re-run all jobs".
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: notes
+          path: ${{ runner.temp }}/notes/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+      - uses: shogo82148/actions-setup-perl@v1.44.4
+        with:
+          perl-version: '5.42'
+      # The dependencies of the tests, and of `minil dist` (Minilla, and the markdown_maker of
+      # minil.toml). Not the rest of the develop prerequisites: they are author tests.
+      - name: Install dependencies
+        run: |
+          cpanm --quiet --notest --installdeps --with-configure .
+          cpanm --quiet --notest Minilla Pod::Markdown::Github
+      - name: Test
+        run: prove -l t
+
+      # The `dist` job of master.yml makes the tarball the same way, so that a pull request
+      # checks it first; change both together.
+      #
+      # `--no-test`: the tests ran above. `minil dist` would also run the author tests in xt/
+      # (spelling, PAUSE permissions over the network), which are not a reason to stop a release.
+      - name: Build the tarball
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          minil dist --no-test
+          tarball="Devel-Cover-Report-Coveralls-${TAG#v}.tar.gz"
+          if [ ! -f "$tarball" ]; then
+            echo "minil dist did not make $tarball:" >&2
+            ls -- *.tar.gz >&2 || true
+            exit 1
+          fi
+          # Minilla takes every file Git tracks; minil.toml keeps scripts/ out.
+          if tar tzf "$tarball" | grep -q '^[^/]*/scripts/'; then
+            echo "$tarball contains scripts/" >&2
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/dist"
+          mv -- "$tarball" "$RUNNER_TEMP/dist/"
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: dist
+          path: ${{ runner.temp }}/dist/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+  upload:
+    needs: build
+    runs-on: ubuntu-latest
+    # The PAUSE credentials live in this environment, not in the repository's secrets, so that
+    # only this job can read them.
+    environment: cpan
+    permissions: {}
+    steps:
+      # No checkout. What runs here is curl and the tarball made by `build`.
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: dist
+          path: ${{ runner.temp }}/dist
+
+      # The same form CPAN::Uploader sends (lib/CPAN/Uploader.pm, `_upload`). Like it, fail on an
+      # HTTP error and take anything else as accepted; PAUSE then indexes the file and mails the
+      # result.
+      #
+      # The credentials go in a curl config file, not on the command line, where `ps` would show
+      # them. The value is quoted there, with `\` and `"` escaped, so that any password works.
+      # The PAUSE ID is upper case, as PAUSE has it.
+      - name: Upload to PAUSE
+        env:
+          PAUSE_USER: ${{ secrets.PAUSE_USER }}
+          PAUSE_PASSWORD: ${{ secrets.PAUSE_PASSWORD }}
+        run: |
+          shopt -s nullglob
+          tarball=("$RUNNER_TEMP"/dist/*.tar.gz)
+          if [ "${#tarball[@]}" -ne 1 ]; then
+            echo "not exactly one tarball: ${tarball[*]}" >&2
+            exit 1
+          fi
+          if [ -z "$PAUSE_USER" ] || [ -z "$PAUSE_PASSWORD" ]; then
+            echo "PAUSE_USER or PAUSE_PASSWORD is not set in the cpan environment" >&2
+            exit 1
+          fi
+          user="${PAUSE_USER^^}"
+          credentials="$user:$PAUSE_PASSWORD"
+          credentials="${credentials//\\/\\\\}"
+          credentials="${credentials//\"/\\\"}"
+          config="$RUNNER_TEMP/curl-pause.conf"
+          response="$RUNNER_TEMP/pause-response.html"
+          trap 'rm -f -- "$config"' EXIT
+          (umask 077 && printf 'user = "%s"\n' "$credentials" > "$config")
+          # On an HTTP error, show what PAUSE said: the upload cannot be retried blindly.
+          if ! curl --fail-with-body --silent --show-error --output "$response" \
+            --config "$config" \
+            -F "HIDDENNAME=$user" \
+            -F 'CAN_MULTIPART=1' \
+            -F "pause99_add_uri_upload=$(basename -- "${tarball[0]}")" \
+            -F "pause99_add_uri_httpupload=@${tarball[0]}" \
+            -F 'pause99_add_uri_uri=' \
+            -F 'SUBMIT_pause99_add_uri_httpupload= Upload this file from my disk ' \
+            'https://pause.perl.org/pause/authenquery?ACTION=add_uri'; then
+            sed -e 's/<[^>]*>//g' -e '/^[[:space:]]*$/d' -- "$response" >&2 || true
+            exit 1
+          fi
+
+  release:
+    # **After the upload.** The other way round, a version that failed to upload would still get
+    # a release. If only this job fails, `gh run rerun <run-id> --failed` runs it alone.
+    needs: upload
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: notes
+          path: ${{ runner.temp }}/notes
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --title "$TAG" --verify-tag --notes-file "$RUNNER_TEMP/notes/release-notes.md"

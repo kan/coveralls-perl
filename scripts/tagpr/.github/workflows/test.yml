@@ -1,0 +1,24 @@
+name: Test
+
+# 使う側（lily / wema / wema-kake）の Node は 24 なので、それに合わせる。
+# 依存は無いので npm ci は要らない。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - run: node --test 'test/*.node-test.mjs'

@@ -1,0 +1,42 @@
+name: tagpr
+
+# **Keeps the release pull request up to date, and tags it when it is merged.** The settings are
+# in `.tagpr`; the release steps are in AGENTS.md ("バージョンとリリース").
+#
+# The job is the shared workflow of kan/tagpr-scripts (`scripts/tagpr/.github/workflows/tagpr.yml`
+# is a copy of it). What it does, its inputs, and what to do when it fails are in
+# `scripts/tagpr/README.md` ("The tagpr workflow").
+#
+# - On every push to master, the release pull request (branch `tagpr-from-v<previous version>`) is
+#   rebuilt on top of master. tagpr bumps the version in the module and in META.json, and
+#   `scripts/tagpr/release-prepare.mjs` turns `## [Unreleased]` of CHANGELOG.md into the version's
+#   section
+# - When the release pull request is merged, the next run tags the merge commit (annotated) and
+#   starts `publish.yml` on that tag with `workflow_dispatch` (a tag pushed with GITHUB_TOKEN does
+#   not start `push: tags`)
+# - `workflow_dispatch` here rebuilds the release pull request (after adding `tagpr:major`, say)
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# **Do not give this workflow a `concurrency`.** The tagpr job of the shared workflow queues the
+# runs one at a time, and the same group name on the caller makes GitHub stop the run as a deadlock.
+jobs:
+  tagpr:
+    # **The SHA is the tagpr-scripts commit pulled into `scripts/tagpr/`.** Move it in the pull
+    # request that pulls the subtree (the `git-subtree-split` line of the squash commit). A reusable
+    # workflow from another repository is not pinned by `actions.lock`; a mismatch is caught by
+    # `verify-subtree.mjs` in master.yml.
+    uses: kan/tagpr-scripts/.github/workflows/tagpr.yml@c2b813c5ac07d8c09c4d75f70aa317dc0338eb7b
+    # The most the shared workflow gets. All four are listed, as its README asks.
+    permissions:
+      contents: write       # push the release branch and the tag
+      pull-requests: write  # open and update the release pull request
+      issues: read          # read labels
+      actions: write        # start publish.yml
+    with:
+      release-workflow: publish.yml

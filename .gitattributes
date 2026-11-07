@@ -1,0 +1,2 @@
+# scripts/tagpr/ reads CHANGELOG.md with LF line endings only, also on the Windows CI.
+CHANGELOG.md text eol=lf
