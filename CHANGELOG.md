@@ -7,6 +7,7 @@ Versions up to 0.32.1 were released from `Changes`, before this file existed.
 
 ## [Unreleased]
 
+- **Breaking:** On GitHub Actions, report as `github` with the values of the official coverage-reporter: the build number is the run (`GITHUB_RUN_ID`) instead of the commit, pull requests send their number and source branch instead of `<number>/merge`, and parallel jobs can be grouped. GitHub Actions is detected by `GITHUB_ACTIONS` instead of `GITHUB_TOKEN`, and a repo token from `COVERALLS_REPO_TOKEN` or `.coveralls.yml` comes before `GITHUB_TOKEN`. Repositories that reported as `github-actions` now report as `github` (#52)
 - **Breaking:** Travis CI also needs `COVERALLS_REPO_TOKEN` (or `repo_token` in `.coveralls.yml`), as Coveralls requires it there too (#53)
 - Support GitLab CI, read `BUILD_NUMBER` on Jenkins, treat `COVERALLS_PARALLEL=false` and `0` as off, and send the branch, commit and pull request that CircleCI, Jenkins and Azure Pipelines give (#53)
 - Require Perl 5.20 or later, the version the current Devel::Cover needs (#57)

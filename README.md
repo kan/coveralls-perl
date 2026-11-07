@@ -118,6 +118,8 @@ won't change, and will be correct.
 ## COVERALLS\_FLAG\_NAME
 
 Describe the particular tests being done, e.g. `Unit` or `Functional`.
+On GitHub Actions it is also added to the job ID, so give each leg of a matrix that reports
+to the same parallel build its own flag name.
 
 ## COVERALLS\_PARALLEL
 
