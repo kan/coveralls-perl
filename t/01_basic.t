@@ -4,6 +4,8 @@ use utf8;
 use Test::More;
 
 use FindBin;
+use Cwd ();
+use File::Basename ();
 use File::Temp ();
 use Devel::Cover::Report::Coveralls;
 
@@ -26,6 +28,10 @@ my @CI_VARS = qw(
     GITHUB_REF GITHUB_REF_NAME GITHUB_HEAD_REF GITHUB_EVENT_PATH
     COVERALLS_REPO_TOKEN COVERALLS_ENDPOINT COVERALLS_FLAG_NAME COVERALLS_PARALLEL
     COVERALLS_PERL_SERVICE_NAME COVERALLS_NO_FAIL
+    COVERALLS_SERVICE_NAME COVERALLS_SERVICE_NUMBER COVERALLS_SERVICE_JOB_ID
+    COVERALLS_SERVICE_JOB_NUMBER COVERALLS_PULL_REQUEST COVERALLS_GIT_BRANCH COVERALLS_GIT_COMMIT
+    GIT_ID GIT_BRANCH GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+    GIT_MESSAGE
 );
 
 subtest 'get_config (travis)' => sub {
@@ -184,6 +190,115 @@ subtest 'get_config local' => sub {
     is $got->{service_name}, 'coveralls-perl', 'config service_name';
     is $got->{service_event_type}, 'manual', 'config service_event_type';
     is $endpoint, $normal_endpoint;
+};
+
+subtest 'get_config overrides from the environment' => sub {
+    local @ENV{@CI_VARS};
+    local $ENV{COVERALLS_REPO_TOKEN} = 'abcdef';
+    local $ENV{GITHUB_ACTIONS} = 'true';
+    local $ENV{GITHUB_RUN_ID} = '111';
+    local $ENV{GITHUB_JOB} = 'test';
+    local $ENV{GITHUB_SHA} = 'from-github';
+    local $ENV{COVERALLS_SERVICE_NAME} = 'my-ci';
+    local $ENV{COVERALLS_SERVICE_NUMBER} = '42';
+    local $ENV{COVERALLS_SERVICE_JOB_ID} = 'job-1';
+    local $ENV{COVERALLS_SERVICE_JOB_NUMBER} = '42.1';
+    local $ENV{COVERALLS_PULL_REQUEST} = '7';
+    local $ENV{COVERALLS_GIT_BRANCH} = 'topic';
+    local $ENV{COVERALLS_GIT_COMMIT} = 'from-env';
+
+    my ($got) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{service_name}, 'my-ci', 'COVERALLS_SERVICE_NAME';
+    is $got->{service_number}, '42', 'COVERALLS_SERVICE_NUMBER over GITHUB_RUN_ID';
+    is $got->{service_job_id}, 'job-1', 'COVERALLS_SERVICE_JOB_ID over GITHUB_JOB';
+    is $got->{service_job_number}, '42.1', 'COVERALLS_SERVICE_JOB_NUMBER';
+    is $got->{service_pull_request}, '7', 'COVERALLS_PULL_REQUEST';
+    is $got->{service_branch}, 'topic', 'COVERALLS_GIT_BRANCH';
+    is $got->{commit_sha}, 'from-env', 'COVERALLS_GIT_COMMIT over GITHUB_SHA';
+
+    local $ENV{COVERALLS_PERL_SERVICE_NAME} = 'perl-ci';
+    ($got) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{service_name}, 'perl-ci', 'COVERALLS_PERL_SERVICE_NAME wins over COVERALLS_SERVICE_NAME';
+
+    local $ENV{COVERALLS_SERVICE_NAME} = '';
+    local $ENV{COVERALLS_PERL_SERVICE_NAME} = '';
+    local $ENV{COVERALLS_SERVICE_NUMBER} = '';
+    ($got) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{service_name}, 'github', 'an empty value is not an override';
+    is $got->{service_number}, '111', 'an empty value keeps what the CI service gives';
+
+    local $ENV{COVERALLS_PULL_REQUEST} = 'false';
+    ($got) = Devel::Cover::Report::Coveralls::get_config();
+    ok !exists $got->{service_pull_request}, 'COVERALLS_PULL_REQUEST=false is not a pull request';
+};
+
+# The GIT_* variables that get_git_info reads, with a value for each.
+my %GIT_ENV = (
+    GIT_ID              => 'abc123',
+    GIT_BRANCH          => 'origin/env-branch',
+    GIT_AUTHOR_NAME     => 'Author',
+    GIT_AUTHOR_EMAIL    => 'author@example.com',
+    GIT_COMMITTER_NAME  => 'Committer',
+    GIT_COMMITTER_EMAIL => 'committer@example.com',
+    GIT_MESSAGE         => 'the message',
+);
+
+subtest 'get_git_info prefers git to the environment' => sub {
+    my $inside = `git rev-parse --is-inside-work-tree 2>&1`;
+    plan skip_all => 'not in a git work tree' unless defined $inside && $inside =~ /^true/;
+
+    local @ENV{@CI_VARS};
+    my $from_git = Devel::Cover::Report::Coveralls::get_git_info();
+    local @ENV{ keys %GIT_ENV } = values %GIT_ENV;
+    my $got = Devel::Cover::Report::Coveralls::get_git_info();
+    is_deeply $got->{head}, $from_git->{head}, 'the head from git, not from GIT_AUTHOR_NAME and the like';
+    is $got->{branch}, $from_git->{branch}, 'the branch from git, not from GIT_BRANCH';
+};
+
+subtest 'get_git_info outside a git work tree' => sub {
+    local @ENV{@CI_VARS};
+    local @ENV{qw(GIT_DIR GIT_WORK_TREE)};
+    my $dir = File::Temp::tempdir(CLEANUP => 1);
+    # Keep git from finding a repository in a directory above the temporary one.
+    local $ENV{GIT_CEILING_DIRECTORIES} = File::Basename::dirname($dir);
+
+    my @warnings;
+    local $SIG{__WARN__} = sub { push @warnings, @_ };
+    my $stderr = File::Temp->new;
+    my $cwd = Cwd::getcwd();
+    open my $saved, '>&', \*STDERR or die "dup STDERR: $!";
+
+    # Put STDERR and the directory back even when get_git_info dies, so that the later subtests
+    # still run where they should and show their diagnostics.
+    my ($got, $with_env);
+    my $ok = eval {
+        chdir $dir or die "chdir $dir: $!";
+        open STDERR, '>&', $stderr or die "redirect STDERR: $!";
+        $got = Devel::Cover::Report::Coveralls::get_git_info();
+        local @ENV{ keys %GIT_ENV } = values %GIT_ENV;
+        $with_env = Devel::Cover::Report::Coveralls::get_git_info();
+        1;
+    };
+    my $error = $@;
+    open STDERR, '>&', $saved or die "restore STDERR: $!";
+    chdir $cwd or die "chdir $cwd: $!";
+    die $error unless $ok;
+
+    is_deeply $got, { head => {}, remotes => [] }, 'nothing is known';
+    is_deeply $with_env, {
+        head => {
+            id              => 'abc123',
+            author_name     => 'Author',
+            author_email    => 'author@example.com',
+            committer_name  => 'Committer',
+            committer_email => 'committer@example.com',
+            message         => 'the message',
+        },
+        remotes => [],
+        branch  => 'origin/env-branch',
+    }, 'what the environment gives';
+    is_deeply \@warnings, [], 'no warnings';
+    is do { local $/; open my $fh, '<', $stderr->filename or die $!; <$fh> }, '', 'git prints nothing';
 };
 
 subtest 'get_config travis requires repo_token' => sub {
@@ -421,6 +536,7 @@ subtest 'get_git_info remotes' => sub {
     my $inside = `git rev-parse --is-inside-work-tree 2>&1`;
     plan skip_all => 'not in a git work tree' unless defined $inside && $inside =~ /^true/;
 
+    local @ENV{@CI_VARS};
     my @names = split /\n/, `git remote`;
     my $got = Devel::Cover::Report::Coveralls::get_git_info();
     is_deeply [ map { $_->{name} } @{ $got->{remotes} } ], \@names, 'every remote, once each';

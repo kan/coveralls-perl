@@ -45,7 +45,10 @@
    ファイル名の先頭の `blib/` は外す
 2. `get_config` が環境変数と `.coveralls.yml` から、送信する JSON の CI 関連の項目とエンドポイントを決める
 3. `get_git_info` が `git log -1` / `git remote -v` / `git branch` を外部コマンドで呼んで git 情報を作る
-   （失敗しても `eval` で空ハッシュになり、送信は続く）
+   （失敗しても `eval` で空ハッシュになり、送信は続く）。git の作業ツリーの外（`in_git_work_tree` が偽）
+   では git を呼ばず、`GIT_ID` / `GIT_BRANCH` / `GIT_AUTHOR_NAME` などの環境変数だけを使う。作業ツリーの
+   中では git の値が先で、環境変数は git が返さなかった項目だけを埋める。分からない値は空文字列にせず、
+   項目ごと送らない
 4. `HTTP::Tiny` で `<endpoint>/api/v1/jobs` へ `json=<JSON>` を form で POST し、結果を標準出力に出す。
    **送信に失敗したら `die` する**（`parse_response` が判定する）。`cover` は捕まえないので、終了コードが
    0 以外になり CI のジョブが落ちる。`COVERALLS_NO_FAIL` が有効なら `die` せずに戻る。
@@ -68,7 +71,11 @@
 
 - **GitHub Actions は `GITHUB_TOKEN` ではなく `GITHUB_ACTIONS` で判定する。** ほかの CI のジョブにも、
   別の用途で `GITHUB_TOKEN` が入っていることがあるため
-- 分岐の後で `COVERALLS_PERL_SERVICE_NAME` が `service_name` を上書きする
+- 分岐の後で、公式と同じ名前の環境変数が CI から取った値を上書きする。対象は `COVERALLS_SERVICE_NAME`、
+  `COVERALLS_SERVICE_NUMBER`、`COVERALLS_SERVICE_JOB_ID`、`COVERALLS_SERVICE_JOB_NUMBER`、
+  `COVERALLS_PULL_REQUEST`、`COVERALLS_GIT_BRANCH`、`COVERALLS_GIT_COMMIT`。最後に
+  `COVERALLS_PERL_SERVICE_NAME`（`COVERALLS_SERVICE_NAME` の別名）が `service_name` を上書きする。
+  空の値は上書きしない
 - `repo_token` は `.coveralls.yml` の値を `COVERALLS_REPO_TOKEN` が上書きする。8 の分岐では、どちらも
   無いときだけ `GITHUB_TOKEN` を使う。**どの CI でも（Travis でも）`repo_token` が無いと `die` する**
 - 8 の `service_job_id` は `GITHUB_JOB` で、`COVERALLS_FLAG_NAME` があれば `<GITHUB_JOB>-<FLAG_NAME>` にする。
@@ -76,6 +83,9 @@
 - 各 CI の環境変数と送る項目を足すときは、公式の coverage-reporter（`src/coverage_reporter/ci/*.cr`）を参考にする。
   ただし次は意図して公式と違えているので、公式に合わせて戻さない
   - Jenkins のブランチは `CHANGE_BRANCH` を `BRANCH_NAME` より先に見る（PR のビルドで `BRANCH_NAME` は `PR-<番号>` になるため）
+  - `get_git_info` は、作業ツリーの中では `GIT_AUTHOR_NAME` / `GIT_BRANCH` などより git の値を先に使う
+    （公式は環境変数が先）。`GIT_AUTHOR_*` / `GIT_COMMITTER_*` は git 自身の変数で、CI のジョブが自分の
+    コミット用にボットの名前を入れていることがあり、Jenkins は `GIT_BRANCH` に `origin/<ブランチ>` を入れるため
   - 既存の `service_name`（`azure-pipelines` など）と、Azure の `service_number` は、送ってきた値を変えない（Coveralls 上の既存のビルドと揃えるため）
 - `COVERALLS_PARALLEL` と `COVERALLS_NO_FAIL` は、空、`false`、`0` なら無効（`is_enabled`）
 - ブランチ名は `git branch` の結果を、`BUILD_SOURCEBRANCHNAME` があればそちらで上書きする。
