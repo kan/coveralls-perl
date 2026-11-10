@@ -34,3 +34,4 @@ _build_params
 .idea
 docker-compose-local.yml
 .pause
+/.env
