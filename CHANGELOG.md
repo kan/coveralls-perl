@@ -16,6 +16,7 @@ Versions up to 0.32.1 were released from `Changes`, before this file existed.
 - Send source files written in UTF-8 as their characters, so that the non-ASCII text in them is not garbled on Coveralls. Files that are not valid UTF-8 are sent as their bytes, as before (#81)
 - On a CI service that is not detected, do not send the build as a manual upload when `COVERALLS_SERVICE_NAME`, `COVERALLS_PERL_SERVICE_NAME`, `COVERALLS_SERVICE_NUMBER`, `COVERALLS_SERVICE_JOB_ID` or `COVERALLS_SERVICE_JOB_NUMBER` is set, and send `COVERALLS_EVENT_TYPE` as the event type, as the official coverage-reporter does (#86)
 - On Azure Pipelines, send the branch (`BUILD_SOURCEBRANCHNAME`) also as `service_branch`. Outside Azure Pipelines, `BUILD_SOURCEBRANCHNAME` is no longer read (#88)
+- Read the commit from one `git log` instead of one for each of its six fields, which is faster on Windows (#87)
 ## [1.0.0] - 2026-11-07
 
 - Update the usage examples for GitHub Actions (with parallel builds), Travis CI and the other CI services, and document `COVERALLS_NO_FAIL` and `COVERALLS_PERL_SERVICE_NAME` (#58)
