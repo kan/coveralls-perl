@@ -10,21 +10,30 @@ our $API_ENDPOINT = 'https://coveralls.io';
 our $SERVICE_NAME = 'coveralls-perl';
 
 use Devel::Cover::DB;
+use Digest::MD5;
 use HTTP::Tiny;
 use JSON::PP;
 use YAML;
 use Data::Dumper;
 
+# The source file to send: its name, its text, the MD5 digest of the file and the coverage of each
+# line. The digest is of the bytes of the file as they are, which is what the jobs API asks for;
+# the text has each line ended with "\n", also where the file uses "\r\n".
+#
+# A file under blib/ is sent by the name of the file it was copied from, so the digest is of that
+# file when it exists: the build may change the copy (the #! line of a script).
 sub get_source {
     my ($file, $callback) = @_;
 
     my $source = '';
     my @coverage;
+    my $digest = Digest::MD5->new;
 
-    open my $fh, '<', $file or warn("Unable to open $file: $!\n"), return;
+    open my $fh, '<:raw', $file or warn("Unable to open $file: $!\n"), return;
 
     while (defined(my $l = <$fh>)) {
-        chomp $l;
+        $digest->add($l);
+        $l =~ s/(?:\r?\n|\r)\z//;
         my $n = $.;
 
         $source .= "$l\n";
@@ -33,13 +42,43 @@ sub get_source {
 
     close($fh);
 
-    $file =~ s!^blib/!!;
+    if ($file =~ s!^blib/!!) {
+        if (open my $orig, '<:raw', $file) {
+            $digest = Digest::MD5->new->addfile($orig);
+        }
+    }
 
     return +{
         name => $file,
         source => $source,
+        source_digest => $digest->hexdigest,
         coverage => \@coverage,
     };
+}
+
+# The body of a request to the jobs API: the job as a JSON file in the multipart field json_file,
+# the form the API documents (https://docs.coveralls.io/api-jobs-endpoint). Returns the content
+# type and the body. The boundary is not quoted in the content type, as the official
+# coverage-reporter does for the nginx of coveralls.io, and is made so that it does not occur in
+# the JSON (which holds the source files, this module's own among them).
+sub json_file_request {
+    my $json = shift;
+
+    my $boundary;
+    do {
+        $boundary = 'CoverallsPerl' . join '', map { sprintf '%04x', int rand 0x10000 } 1 .. 8;
+    } while index($json, $boundary) >= 0;
+
+    my $body = join "\r\n",
+        "--$boundary",
+        'Content-Disposition: form-data; name="json_file"; filename="json_file"',
+        'Content-Type: application/json',
+        '',
+        $json,
+        "--$boundary--",
+        '';
+
+    return ("multipart/form-data; boundary=$boundary", $body);
 }
 
 sub git_log {
@@ -352,8 +391,11 @@ sub report {
 
     my $coder = JSON::PP->new->ascii;
 
-    my $response = HTTP::Tiny->new( verify_SSL => 1 )
-        ->post_form( $endpoint, { json => $coder->encode($json) } );
+    my ($content_type, $body) = json_file_request($coder->encode($json));
+    my $response = HTTP::Tiny->new( verify_SSL => 1 )->request('POST', $endpoint, {
+        headers => { 'Content-Type' => $content_type },
+        content => $body,
+    });
 
     my ($url, $error) = parse_response($response);
 

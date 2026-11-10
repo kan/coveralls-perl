@@ -5,6 +5,8 @@ use Test::More;
 
 use FindBin;
 use Cwd ();
+use Digest::MD5 ();
+use JSON::PP qw(decode_json);
 use File::Basename ();
 use File::Temp ();
 use Devel::Cover::Report::Coveralls;
@@ -446,8 +448,8 @@ subtest 'report exits non-zero when the upload fails' => sub {
     no warnings 'once', 'redefine';
     local *Local::FakeDB::cover = sub { bless {}, 'Local::FakeCover' };
     # Never reach Coveralls from the tests.
-    my $response;
-    local *HTTP::Tiny::post_form = sub { $response };
+    my ($response, @request);
+    local *HTTP::Tiny::request = sub { (undef, @request) = @_; $response };
     my $run = sub {
         my $out = '';
         open my $fh, '>', \$out or die $!;
@@ -494,6 +496,51 @@ subtest 'report exits non-zero when the upload fails' => sub {
     ($ok, $err, $out) = $run->();
     ok $ok, 'returns on success';
     like $out, qr{^register: https://coveralls.io/jobs/1$}m, 'prints the job';
+
+    my ($method, $url, $args) = @request;
+    is $method, 'POST', 'POST';
+    is $url, $normal_endpoint, 'to the jobs API';
+    my ($boundary) = $args->{headers}{'Content-Type'} =~ m{^multipart/form-data; boundary=(\S+)$};
+    ok defined $boundary, 'as multipart/form-data, with an unquoted boundary';
+    my ($json) = $args->{content}
+        =~ m{\A--\Q$boundary\E\r\nContent-Disposition: form-data; name="json_file"; filename="json_file"\r\nContent-Type: application/json\r\n\r\n(.*)\r\n--\Q$boundary\E--\r\n\z}s;
+    ok defined $json, 'the job is the one field json_file';
+    is decode_json($json)->{repo_token}, 'abcdef', 'which holds the job';
+
+    # With a source file: a statement on line 6 that ran twice.
+    local *Local::FakeCover::file = sub { bless {}, 'Local::FakeFile' };
+    local *Local::FakeFile::statement = sub { bless {}, 'Local::FakeStatements' };
+    local *Local::FakeStatements::location = sub {
+        $_[1] == 6 ? [ bless {}, 'Local::FakeStatement' ] : undef;
+    };
+    local *Local::FakeStatement::uncoverable = sub { 0 };
+    local *Local::FakeStatement::covered = sub { 2 };
+    my $file = "$FindBin::Bin/example.pl";
+    {
+        my $out = '';
+        open my $fh, '>', \$out or die $!;
+        my $old = select $fh;
+        Devel::Cover::Report::Coveralls->report($db, { file => [$file] });
+        select $old;
+    }
+    ($boundary) = $request[2]{headers}{'Content-Type'} =~ /boundary=(\S+)$/;
+    ($json) = $request[2]{content} =~ m{\r\n\r\n(.*)\r\n--\Q$boundary\E--\r\n\z}s;
+    my ($sent) = @{ decode_json($json)->{source_files} };
+    is $sent->{name}, $file, 'the source file is sent';
+    is $sent->{source_digest}, do {
+        open my $fh, '<:raw', $file or die $!;
+        Digest::MD5->new->addfile($fh)->hexdigest;
+    }, 'with its digest';
+    is_deeply $sent->{coverage}, [undef, undef, undef, undef, undef, 2], 'and its coverage';
+};
+
+subtest 'json_file_request' => sub {
+    my $json = '{"source_files":[{"source":"CoverallsPerl"}]}';
+    my ($type, $body) = Devel::Cover::Report::Coveralls::json_file_request($json);
+    my ($boundary) = $type =~ /boundary=(\S+)$/;
+    like $boundary, qr/^CoverallsPerl[0-9a-f]{32}$/, 'a random boundary';
+    is index($json, $boundary), -1, 'which is not in the JSON';
+    like $body, qr/\r\n\Q$json\E\r\n--\Q$boundary\E--\r\n\z/, 'the JSON as it is';
 };
 
 subtest 'strip_url_credentials' => sub {
@@ -564,9 +611,48 @@ print "hello, world";
 EOS
         coverage => [undef, undef, undef, undef, undef, 0]
     };
+    $source->{source_digest} = do {
+        open my $fh, '<:raw', "$FindBin::Bin/example.pl" or die $!;
+        Digest::MD5->new->addfile($fh)->hexdigest;
+    };
 
     is_deeply Devel::Cover::Report::Coveralls::get_source("$FindBin::Bin/example.pl",
         sub { $_[0] == 6 ? 0 : undef } ), $source, 'source';
+};
+
+subtest 'get_source (CRLF, no newline at the end)' => sub {
+    my $tmp = File::Temp->new;
+    binmode $tmp;
+    print $tmp "a\r\nb";
+    close $tmp;
+
+    my $got = Devel::Cover::Report::Coveralls::get_source($tmp->filename, sub { 1 });
+    is $got->{source}, "a\nb\n", 'lines end with "\n"';
+    is $got->{source_digest}, Digest::MD5::md5_hex("a\r\nb"), 'the digest of the bytes of the file';
+    is_deeply $got->{coverage}, [1, 1], 'a line each';
+};
+
+subtest 'get_source (a copy under blib/)' => sub {
+    my $dir = File::Temp::tempdir(CLEANUP => 1);
+    my $cwd = Cwd::getcwd();
+    chdir $dir or die "chdir $dir: $!";
+    my $got = eval {
+        mkdir 'script';
+        mkdir 'blib';
+        mkdir 'blib/script';
+        for (['script/foo', "#!perl\nprint 1;\n"], ['blib/script/foo', "#!/usr/bin/perl\nprint 1;\n"]) {
+            open my $fh, '>:raw', $_->[0] or die $!;
+            print $fh $_->[1];
+        }
+        Devel::Cover::Report::Coveralls::get_source('blib/script/foo', sub { undef });
+    };
+    my $error = $@;
+    chdir $cwd or die "chdir $cwd: $!";
+    die $error unless $got;
+
+    is $got->{name}, 'script/foo', 'sent by the name of the original';
+    is $got->{source}, "#!/usr/bin/perl\nprint 1;\n", 'the text of the copy that ran';
+    is $got->{source_digest}, Digest::MD5::md5_hex("#!perl\nprint 1;\n"), 'the digest of the original';
 };
 
 done_testing;

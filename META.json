@@ -45,6 +45,7 @@
       "runtime" : {
          "requires" : {
             "Devel::Cover" : "1.02",
+            "Digest::MD5" : "0",
             "HTTP::Tiny" : "0.043",
             "IO::Socket::SSL" : "1.42",
             "JSON::PP" : "0",

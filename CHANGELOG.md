@@ -11,6 +11,7 @@ Versions up to 0.32.1 were released from `Changes`, before this file existed.
 - Leave the bots (tagpr's release pull requests and Dependabot) out of the contributors in the distribution's metadata (#71)
 - Work outside a git repository: git is not run there, so it prints no errors, and values that are not known are left out instead of sent empty. The commit, its author and the branch can be given there as `GIT_ID`, `GIT_BRANCH`, `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` and `GIT_MESSAGE`, the names of the official coverage-reporter (#35)
 - Override what the CI service gives with `COVERALLS_SERVICE_NAME`, `COVERALLS_SERVICE_NUMBER`, `COVERALLS_SERVICE_JOB_ID`, `COVERALLS_SERVICE_JOB_NUMBER`, `COVERALLS_PULL_REQUEST`, `COVERALLS_GIT_BRANCH` and `COVERALLS_GIT_COMMIT`, as in the official coverage-reporter (#35)
+- Send the job in the form the Coveralls jobs API documents: a JSON file in the multipart field `json_file`, in place of the form field `json`, with the MD5 digest of each source file as `source_digest` (#55)
 ## [1.0.0] - 2026-11-07
 
 - Update the usage examples for GitHub Actions (with parallel builds), Travis CI and the other CI services, and document `COVERALLS_NO_FAIL` and `COVERALLS_PERL_SERVICE_NAME` (#58)
