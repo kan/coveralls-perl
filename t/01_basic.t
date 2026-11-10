@@ -515,6 +515,14 @@ subtest 'report exits non-zero when the upload fails' => sub {
     };
     local *Local::FakeStatement::uncoverable = sub { 0 };
     local *Local::FakeStatement::covered = sub { 2 };
+    # One decision on line 6, whose true side ran twice and false side never.
+    local *Local::FakeFile::branch = sub { bless {}, 'Local::FakeBranches' };
+    local *Local::FakeBranches::location = sub {
+        $_[1] == 6 ? [ bless { values => [2, 0] }, 'Local::FakeBranch' ] : undef;
+    };
+    local *Local::FakeBranch::total = sub { scalar @{ $_[0]{values} } };
+    local *Local::FakeBranch::value = sub { $_[0]{values}[ $_[1] ] };
+    local *Local::FakeBranch::uncoverable = sub { 0 };
     my $file = "$FindBin::Bin/example.pl";
     {
         my $out = '';
@@ -532,6 +540,47 @@ subtest 'report exits non-zero when the upload fails' => sub {
         Digest::MD5->new->addfile($fh)->hexdigest;
     }, 'with its digest';
     is_deeply $sent->{coverage}, [undef, undef, undef, undef, undef, 2], 'and its coverage';
+    is_deeply $sent->{branches}, [6, 0, 0, 2, 6, 0, 1, 0], 'and its branches';
+
+    # The branch coverage was not collected.
+    local *Local::FakeFile::branch = sub { undef };
+    {
+        my $out = '';
+        open my $fh, '>', \$out or die $!;
+        my $old = select $fh;
+        Devel::Cover::Report::Coveralls->report($db, { file => [$file] });
+        select $old;
+    }
+    ($boundary) = $request[2]{headers}{'Content-Type'} =~ /boundary=(\S+)$/;
+    ($json) = $request[2]{content} =~ m{\r\n\r\n(.*)\r\n--\Q$boundary\E--\r\n\z}s;
+    ($sent) = @{ decode_json($json)->{source_files} };
+    ok !exists $sent->{branches}, 'no branches without the branch coverage';
+};
+
+subtest 'get_branches' => sub {
+    my %lines = (
+        # Two decisions on one line; the false side of the second never ran.
+        2 => [ { values => [3, 1] }, { values => [4, undef] } ],
+        # The true side is marked uncoverable.
+        5 => [ { values => [0, 7], uncoverable => [1, 0] } ],
+    );
+    no warnings 'once';
+    local *Local::FakeBranches::location = sub {
+        my $l = $lines{ $_[1] } or return undef;
+        [ map { bless $_, 'Local::FakeBranch' } @$l ];
+    };
+    local *Local::FakeBranch::total = sub { scalar @{ $_[0]{values} } };
+    local *Local::FakeBranch::value = sub { $_[0]{values}[ $_[1] ] };
+    local *Local::FakeBranch::uncoverable = sub { ($_[0]{uncoverable} || [])->[ $_[1] ] };
+
+    my $criterion = bless {}, 'Local::FakeBranches';
+    is_deeply Devel::Cover::Report::Coveralls::get_branches($criterion, 6),
+        [ 2, 0, 0, 3,  2, 0, 1, 1,  2, 1, 0, 4,  2, 1, 1, 0,  5, 0, 1, 7 ],
+        'line, block, branch and hits for each branch, without the uncoverable one';
+    is_deeply Devel::Cover::Report::Coveralls::get_branches($criterion, 4),
+        [ 2, 0, 0, 3,  2, 0, 1, 1,  2, 1, 0, 4,  2, 1, 1, 0 ], 'only the lines of the file';
+    is_deeply Devel::Cover::Report::Coveralls::get_branches(undef, 6), [],
+        'nothing when the branch coverage was not collected';
 };
 
 subtest 'json_file_request' => sub {
