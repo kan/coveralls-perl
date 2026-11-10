@@ -33,7 +33,7 @@
       },
       "develop" : {
          "requires" : {
-            "Minilla" : "0",
+            "Minilla" : "v3.2.0",
             "Pod::Markdown::Github" : "0",
             "Test::CPAN::Meta" : "0",
             "Test::MinimumVersion::Fast" : "0.04",
@@ -86,6 +86,6 @@
       "bayashi <bayashi@cpan.org>",
       "chylli-deriv <52912308+chylli-deriv@users.noreply.github.com>"
    ],
-   "x_serialization_backend" : "JSON::PP version 4.02",
+   "x_serialization_backend" : "JSON::PP version 4.16",
    "x_static_install" : 1
 }

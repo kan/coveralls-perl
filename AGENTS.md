@@ -18,7 +18,7 @@
 | `RELEASE.md` | メンテナ向けのリリース手順（tagpr のリリース PR のマージ） |
 | `.tagpr` | tagpr の設定 |
 | `scripts/tagpr/` | kan/tagpr-scripts を `git subtree` で取り込んだもの。**手で編集しない**（下の「バージョンとリリース」） |
-| `docker-compose.yml` | 開発用の Perl コンテナ（perl 5.30.1 + cpm） |
+| `Dockerfile` / `docker-compose.yml` | 開発用の Perl コンテナ（公式の `perl:5.44` + cpm）。配布物には入らない（`minil.toml`） |
 | `.github/workflows/` | CI。ubuntu（`master.yml`）/ windows / mac、`actions.lock` の検証、リリース（`tagpr.yml` / `publish.yml`） |
 | `.travis.yml` | 旧 CI の名残。ブランチ名に `travis` を含むときしか動かない |
 
@@ -32,9 +32,7 @@
   利用方法や環境変数の説明を直すときは POD を直す
 - **POD、`cpanfile`、`minil.toml` を変えたら、同じ PR で `minil build` を実行し、作り直された
   `README.md` / `META.json` も一緒にコミットする。** リリース PR は `META.json` の版しか変えないので、
-  ここで作り直さないと古いまま配布される。コンテナの中では `PATH=/app/local/bin:$PATH minil build`。
-  コンテナから GitHub へ ssh で繋がらないためエラーで終わるが、`README.md` と `META.json` はその前に
-  書き出される
+  ここで作り直さないと古いまま配布される。コンテナでは `docker compose run --rm perl minil build`
 - `Devel-Cover-Report-Coveralls-*/`、`.build/`、`local/`、`blib/` はビルドや依存インストールの産物で、
   `.gitignore` 済み。読んだり編集したりしない
 
@@ -102,17 +100,29 @@
 ## テスト
 
 ホストの Perl には依存モジュール（`Devel::Cover` など）が入っていないことが多い。その場合は
-`docker-compose.yml` のコンテナで実行する。
+`docker-compose.yml` のコンテナで実行する。イメージは repo の `Dockerfile`（公式の `perl:5.44` に
+cpm を足したもの）からビルドされる。
 
 ```sh
-docker compose up -d
-docker compose exec perl bash
-# 以下コンテナ内（/app がリポジトリ）
-cpm install --with-develop     # local/ へ入る。PERL5LIB は compose 側で設定済み
-prove -l t
+docker compose run --rm perl cpm install --with-develop   # cpanfile から依存を入れる（下のボリューム）
+docker compose run --rm perl prove -l t                   # 全テスト
+docker compose run --rm perl minil build                  # 生成物の作り直し（上の「生成物は直接編集しない」）
 ```
 
 `perl Build.PL && ./Build build && ./Build test` でも同じテストが走る（CI はこちら）。
+
+- コンテナはホストのユーザー（既定は uid / gid 1000）で動くので、書き出したファイルは root 所有に
+  ならない。ホストの uid / gid が 1000 でなければ、repo 直下の `.env`（`.gitignore` 済み、compose が
+  自動で読む）に `HOST_UID=<uid>` と `HOST_GID=<gid>` を書き、`docker compose build` からやり直す。
+  ボリュームの所有者は作ったときの uid のまま変わらないので、作った後なら `docker compose down -v` で
+  消してから入れ直す
+- 依存は名前付きボリューム `perl-local-5.44` に入る（repo の `local/` ではない）。Perl の版を上げるときは、
+  `Dockerfile` と一緒にボリューム名も変える（別の版でビルドした XS モジュールは読み込めない）。前の
+  ボリュームは `docker volume rm coveralls-perl_<前の名前>` で消す（perl-cpm のころのものは
+  `coveralls-perl_perl-local`）
+- **Perl の版は `Dockerfile` の `FROM` と `docker-compose.yml` のボリューム名で揃える。** Dependabot
+  （`dependabot.yml` の `docker`）が PR で上げるのは `Dockerfile` だけだ。その PR を取り込むときは、
+  残りも同じ PR で手で上げる
 
 - **`t/01_basic.t` で `get_config` を試す subtest は、最初に `local @ENV{@CI_VARS};` で CI の環境変数を
   すべて消す。** テスト自体が CI の上で走る。`GITHUB_TOKEN` や `GITHUB_ACTIONS` が入っていると、
@@ -128,7 +138,8 @@ prove -l t
 - action のバージョンは `.github/workflows/actions.lock` で固定している。**`uses:` の行を変えたら、
   repo のルートで `gh actions-lock` を実行し、書き換わったワークフローと lockfile を一緒にコミットする。**
   lockfile を手で編集しない
-- Dependabot が action の更新 PR を週 1 回出す（lockfile も書き換わる）
+- Dependabot が action の更新 PR を週 1 回出す（lockfile も書き換わる）。開発用コンテナの `Dockerfile` の
+  ベースイメージの更新 PR も出す。その PR で揃えるものは上の「テスト」
 
 ## バージョンとリリース
 

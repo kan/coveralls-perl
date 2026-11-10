@@ -18,3 +18,16 @@ updates:
     ignore:
       # Moved together with scripts/tagpr/ by git subtree pull, never on its own
       - dependency-name: 'kan/tagpr-scripts*'
+
+  # Updates the base image of the development container (Dockerfile, `FROM perl:5.44`).
+  #
+  # **Only the Dockerfile is updated.** Dependabot does not read the `container:` images of
+  # .github/workflows, so a pull request that moves the Perl version (5.44 to 5.46, say) must also
+  # move, by hand, the volume name in docker-compose.yml and the other places AGENTS.md lists
+  # ("テスト").
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3

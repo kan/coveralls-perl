@@ -5,4 +5,4 @@ markdown_maker = "Pod::Markdown::Github"
 # minil dist tries to rewrite a `Changes` file that no longer exists.
 manage_changes = false
 [FileGatherer]
-exclude_match = ["^docker-compose*", "^scripts/"]
+exclude_match = ["^docker-compose*", "^Dockerfile$", "^scripts/"]
