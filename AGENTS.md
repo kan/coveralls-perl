@@ -85,8 +85,8 @@
 - 分岐の後で、公式と同じ名前の環境変数が CI から取った値を上書きする。対象は `COVERALLS_SERVICE_NAME`、
   `COVERALLS_SERVICE_NUMBER`、`COVERALLS_SERVICE_JOB_ID`、`COVERALLS_SERVICE_JOB_NUMBER`、
   `COVERALLS_PULL_REQUEST`、`COVERALLS_GIT_BRANCH`、`COVERALLS_GIT_COMMIT`。最後に
-  `COVERALLS_PERL_SERVICE_NAME`（`COVERALLS_SERVICE_NAME` の別名）が `service_name` を上書きする。
-  空の値は上書きしない
+  `COVERALLS_PERL_SERVICE_NAME`（`COVERALLS_SERVICE_NAME` の別名）が `service_name` を、
+  `COVERALLS_EVENT_TYPE` が `service_event_type` を上書きする。空の値は上書きしない
 - `repo_token` は `.coveralls.yml` の値を `COVERALLS_REPO_TOKEN` が上書きする。8 の分岐では、どちらも
   無いときだけ `GITHUB_TOKEN` を使う。**どの CI でも（Travis でも）`repo_token` が無いと `die` する**
 - 8 の `service_job_id` は `GITHUB_JOB` で、`COVERALLS_FLAG_NAME` があれば `<GITHUB_JOB>-<FLAG_NAME>` にする。
@@ -98,6 +98,10 @@
     （公式は環境変数が先）。`GIT_AUTHOR_*` / `GIT_COMMITTER_*` は git 自身の変数で、CI のジョブが自分の
     コミット用にボットの名前を入れていることがあり、Jenkins は `GIT_BRANCH` に `origin/<ブランチ>` を入れるため
   - 既存の `service_name`（`azure-pipelines` など）と、Azure の `service_number` は、送ってきた値を変えない（Coveralls 上の既存のビルドと揃えるため）
+  - 9 の `manual` は、`COVERALLS_SERVICE_NAME`、`COVERALLS_PERL_SERVICE_NAME`、`COVERALLS_SERVICE_NUMBER`、
+    `COVERALLS_SERVICE_JOB_ID`、`COVERALLS_SERVICE_JOB_NUMBER` がどれも無いときに送る（公式は
+    `COVERALLS_RUN_LOCALLY` があるときだけ）。どれかがあれば未対応の CI のビルドなので送らない。手元で
+    実行したときの `manual` は以前から送っている値なので残す。`.coveralls.yml` の `service_name` では外さない
 - `COVERALLS_PARALLEL` と `COVERALLS_NO_FAIL` は、空、`false`、`0` なら無効（`is_enabled`）
 - ブランチ名は `git branch` の結果を、`BUILD_SOURCEBRANCHNAME` があればそちらで上書きする。
   さらに `report` で、CI から取れた `service_branch` / `commit_sha` を `git.branch` / `git.head.id` に

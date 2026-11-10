@@ -32,6 +32,7 @@ my @CI_VARS = qw(
     COVERALLS_PERL_SERVICE_NAME COVERALLS_NO_FAIL
     COVERALLS_SERVICE_NAME COVERALLS_SERVICE_NUMBER COVERALLS_SERVICE_JOB_ID
     COVERALLS_SERVICE_JOB_NUMBER COVERALLS_PULL_REQUEST COVERALLS_GIT_BRANCH COVERALLS_GIT_COMMIT
+    COVERALLS_EVENT_TYPE
     GIT_ID GIT_BRANCH GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
     GIT_MESSAGE
 );
@@ -192,6 +193,39 @@ subtest 'get_config local' => sub {
     is $got->{service_name}, 'coveralls-perl', 'config service_name';
     is $got->{service_event_type}, 'manual', 'config service_event_type';
     is $endpoint, $normal_endpoint;
+
+    for my $name (qw(
+        COVERALLS_SERVICE_NAME COVERALLS_PERL_SERVICE_NAME COVERALLS_SERVICE_NUMBER
+        COVERALLS_SERVICE_JOB_ID COVERALLS_SERVICE_JOB_NUMBER
+    )) {
+        local $ENV{$name} = 'buildkite';
+        ($got) = Devel::Cover::Report::Coveralls::get_config();
+        ok !exists $got->{service_event_type}, "not manual with $name";
+    }
+    {
+        local $ENV{COVERALLS_SERVICE_NAME} = '';
+        ($got) = Devel::Cover::Report::Coveralls::get_config();
+        is $got->{service_event_type}, 'manual', 'still manual with an empty COVERALLS_SERVICE_NAME';
+    }
+    {
+        local $ENV{COVERALLS_EVENT_TYPE} = '';
+        ($got) = Devel::Cover::Report::Coveralls::get_config();
+        is $got->{service_event_type}, 'manual', 'an empty COVERALLS_EVENT_TYPE is not an override';
+    }
+    {
+        local $ENV{GITHUB_ACTIONS} = 'true';
+        local $ENV{COVERALLS_EVENT_TYPE} = 'push';
+        ($got) = Devel::Cover::Report::Coveralls::get_config();
+        is $got->{service_name}, 'github', 'a detected CI service';
+        is $got->{service_event_type}, 'push', 'COVERALLS_EVENT_TYPE on a detected CI service';
+    }
+
+    local $ENV{COVERALLS_EVENT_TYPE} = 'push';
+    ($got) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{service_event_type}, 'push', 'COVERALLS_EVENT_TYPE';
+    local $ENV{COVERALLS_SERVICE_NAME} = 'buildkite';
+    ($got) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{service_event_type}, 'push', 'COVERALLS_EVENT_TYPE with a service name';
 };
 
 subtest 'get_config overrides from the environment' => sub {
