@@ -103,9 +103,10 @@
     `COVERALLS_RUN_LOCALLY` があるときだけ）。どれかがあれば未対応の CI のビルドなので送らない。手元で
     実行したときの `manual` は以前から送っている値なので残す。`.coveralls.yml` の `service_name` では外さない
 - `COVERALLS_PARALLEL` と `COVERALLS_NO_FAIL` は、空、`false`、`0` なら無効（`is_enabled`）
-- ブランチ名は `git branch` の結果を、`BUILD_SOURCEBRANCHNAME` があればそちらで上書きする。
-  さらに `report` で、CI から取れた `service_branch` / `commit_sha` を `git.branch` / `git.head.id` に
-  上書きする（`apply_ci_git_info`）
+- ブランチ名は `get_git_info` が `git branch` の結果から取り、`report` で、CI から取れた
+  `service_branch` / `commit_sha` を `git.branch` / `git.head.id` に上書きする（`apply_ci_git_info`）。
+  **CI から取るブランチは、どの CI でも `get_config` で `service_branch` に入れる**（Azure の
+  `BUILD_SOURCEBRANCHNAME` も）。`get_git_info` に CI の環境変数を読ませると、優先順位が 2 つの関数に分かれる
 - **新しい CI を足すときは、分岐の位置で既存の CI の判定を奪わないか確認する。** 利用者向けの環境変数を
   足したら POD の `=head1 ENVIRONMENT` にも書く
 

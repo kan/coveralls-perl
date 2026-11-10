@@ -163,10 +163,16 @@ subtest 'get_config azure' => sub {
 
     is $got->{service_name}, 'azure-pipelines', 'config service_name';
     is $got->{service_number}, '123456789', 'config service_number';
+    is $got->{service_branch}, 'feature', 'config service_branch';
     is $endpoint, $normal_endpoint;
 
-    $got = Devel::Cover::Report::Coveralls::get_git_info();
-    is $got->{branch}, 'feature', 'git branch';
+    my $git = Devel::Cover::Report::Coveralls::apply_ci_git_info($got,
+        Devel::Cover::Report::Coveralls::get_git_info());
+    is $git->{branch}, 'feature', 'the branch of Azure Pipelines over the one of git';
+
+    local $ENV{COVERALLS_GIT_BRANCH} = 'from-env';
+    ($got) = Devel::Cover::Report::Coveralls::get_config();
+    is $got->{service_branch}, 'from-env', 'COVERALLS_GIT_BRANCH over BUILD_SOURCEBRANCHNAME';
 };
 
 subtest 'get_config drone' => sub {

@@ -190,10 +190,6 @@ sub get_git_info {
     $branch = env_value('GIT_BRANCH') if !defined $branch || $branch eq '';
     $git->{branch} = $branch if defined $branch && $branch ne '';
 
-    if ($ENV{BUILD_SOURCEBRANCHNAME}) {
-        $git->{branch} = $ENV{BUILD_SOURCEBRANCHNAME};
-    }
-
     return $git;
 }
 
@@ -301,6 +297,7 @@ sub get_config {
         $json->{service_number} = $ENV{BUILD_BUILDID};
         $json->{service_pull_request} = $ENV{SYSTEM_PULLREQUEST_PULLREQUESTNUMBER}
             if $ENV{SYSTEM_PULLREQUEST_PULLREQUESTNUMBER};
+        $json->{service_branch} = $ENV{BUILD_SOURCEBRANCHNAME} if $ENV{BUILD_SOURCEBRANCHNAME};
         $json->{commit_sha} = $ENV{BUILD_SOURCEVERSION} if $ENV{BUILD_SOURCEVERSION};
     } elsif ($ENV{GITHUB_ACTIONS}) {
         # The values of the official coverage-reporter (src/coverage_reporter/ci/github.cr).
