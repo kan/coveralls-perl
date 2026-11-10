@@ -160,9 +160,31 @@ job fails. Set this to `true` to exit 0 instead, e.g. when coverage is optional 
 pull requests from forks get no repo token. When `cover` makes several reports, the ones after
 `coveralls` are not made after a failure, so put `coveralls` last. Any value other than empty, `false` and `0` turns it on.
 
+## COVERALLS\_SERVICE\_NAME, COVERALLS\_SERVICE\_NUMBER, COVERALLS\_SERVICE\_JOB\_ID, COVERALLS\_SERVICE\_JOB\_NUMBER, COVERALLS\_PULL\_REQUEST
+
+Send these as the name of the CI service, the build number, the job ID, the job number and the
+number of the pull request, in place of what is detected from the CI service. On a CI service
+not listed in ["USAGE"](#usage), set them to send what the CI service knows. `COVERALLS_PULL_REQUEST`
+set to `false` means that the build is not for a pull request.
+
 ## COVERALLS\_PERL\_SERVICE\_NAME
 
-Sends this as the name of the CI service, in place of the one detected (e.g. `github`).
+Another name of `COVERALLS_SERVICE_NAME`, which wins when both are set.
+
+## COVERALLS\_GIT\_BRANCH, COVERALLS\_GIT\_COMMIT
+
+Send these as the branch and the commit ID, in place of the ones detected from the CI service
+and from git.
+
+## GIT\_ID, GIT\_BRANCH, GIT\_AUTHOR\_NAME, GIT\_AUTHOR\_EMAIL, GIT\_COMMITTER\_NAME, GIT\_COMMITTER\_EMAIL, GIT\_MESSAGE
+
+The commit ID, the branch, the author, the committer and the message of the commit, for a build
+outside a git repository (e.g. from another version control system, or from a tarball). There
+git is not run, and what is not set is not sent. In a git repository, what git says comes first,
+and these only fill in what git does not give: CI jobs often set `GIT_AUTHOR_NAME` and the
+like for the commits they make, and Jenkins sets `GIT_BRANCH` to `origin/<branch>`.
+To give the branch or the commit ID in a git repository, use `COVERALLS_GIT_BRANCH` and
+`COVERALLS_GIT_COMMIT`.
 
 # SEE ALSO
 

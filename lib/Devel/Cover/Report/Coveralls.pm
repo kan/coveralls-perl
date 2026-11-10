@@ -83,21 +83,60 @@ sub strip_url_credentials {
     return $url;
 }
 
+# The value of an environment variable, or undef when it is unset or empty.
+sub env_value {
+    my $value = $ENV{ shift() };
+    return defined $value && $value ne '' ? $value : undef;
+}
+
+# Whether the current directory is in a git work tree. False also when git is not installed.
+# Outside a repository nothing is printed; any other error of git (e.g. a repository that
+# safe.directory does not allow) is shown as a warning.
+sub in_git_work_tree {
+    my $out = `git rev-parse --is-inside-work-tree 2>&1`;
+    return 1 if $? == 0 && defined $out && $out =~ /^true/;
+    warn "git: $out" if defined $out && $out =~ /^fatal:/m && $out !~ /not a git repository/;
+    return 0;
+}
+
+# The fields of git.head: the environment variable used where git does not give the value (the
+# names of the official coverage-reporter), and the git log format of the value.
+my @GIT_HEAD_FIELDS = (
+    [ id              => GIT_ID              => '%H'  ],
+    [ author_name     => GIT_AUTHOR_NAME     => '%aN' ],
+    [ author_email    => GIT_AUTHOR_EMAIL    => '%ae' ],
+    [ committer_name  => GIT_COMMITTER_NAME  => '%cN' ],
+    [ committer_email => GIT_COMMITTER_EMAIL => '%ce' ],
+    [ message         => GIT_MESSAGE         => '%s'  ],
+);
+
+# The git information to send. In a git work tree each value comes from git, and the environment
+# only fills in what git does not give; outside one, git is not run and the values come from the
+# environment. Git comes first because GIT_AUTHOR_NAME and the like are git's own variables, which
+# CI jobs set for the commits they make, and Jenkins sets GIT_BRANCH to "origin/<branch>".
+# Values that are not known are left out.
 sub get_git_info {
+    my $in_repo = in_git_work_tree();
+
+    my %head;
+    for my $field (@GIT_HEAD_FIELDS) {
+        my ($key, $name, $format) = @$field;
+        my $value = $in_repo ? git_log($format) : '';
+        $value = env_value($name) // '' if $value eq '';
+        $head{$key} = $value if $value ne '';
+    }
     my $git = {
-        head => {
-            id              => git_log('%H'),
-            author_name     => git_log('%aN'),
-            author_email    => git_log('%ae'),
-            committer_name  => git_log('%cN'),
-            committer_email => git_log('%ce'),
-            message         => git_log('%s')
-        },
-        remotes => parse_git_remotes(scalar `git remote -v`),
+        head    => \%head,
+        remotes => $in_repo ? parse_git_remotes(scalar `git remote -v`) : [],
     };
-    my ($branch,) = grep { /^\* / } split( "\n", `git branch` );
-    $branch =~ s/^\* //;
-    $git->{branch} = $branch;
+
+    my $branch;
+    if ($in_repo) {
+        ($branch) = grep { /^\* / } split /\n/, `git branch`;
+        $branch =~ s/^\* // if defined $branch;
+    }
+    $branch = env_value('GIT_BRANCH') if !defined $branch || $branch eq '';
+    $git->{branch} = $branch if defined $branch && $branch ne '';
 
     if ($ENV{BUILD_SOURCEBRANCHNAME}) {
         $git->{branch} = $ENV{BUILD_SOURCEBRANCHNAME};
@@ -245,9 +284,28 @@ sub get_config {
     # Coveralls requires the token on every CI service, Travis CI included.
     die "required repo_token in $CONFIG_FILE, make sure the environment var \"COVERALLS_REPO_TOKEN\" is set" if !$json->{repo_token};
 
-    if (exists $ENV{COVERALLS_PERL_SERVICE_NAME} && $ENV{COVERALLS_PERL_SERVICE_NAME}) {
-        $json->{service_name} = $ENV{COVERALLS_PERL_SERVICE_NAME};
+    # Overrides over what the CI service gives, under the names of the official coverage-reporter
+    # (src/coverage_reporter/config.cr). They also let a build that no CI service is detected for
+    # send these values.
+    my @overrides = (
+        [ service_name         => 'COVERALLS_SERVICE_NAME' ],
+        [ service_number       => 'COVERALLS_SERVICE_NUMBER' ],
+        [ service_job_id       => 'COVERALLS_SERVICE_JOB_ID' ],
+        [ service_job_number   => 'COVERALLS_SERVICE_JOB_NUMBER' ],
+        [ service_pull_request => 'COVERALLS_PULL_REQUEST' ],
+        [ service_branch       => 'COVERALLS_GIT_BRANCH' ],
+        [ commit_sha           => 'COVERALLS_GIT_COMMIT' ],
+        # The older name of COVERALLS_SERVICE_NAME. It comes last, so it wins when both are set.
+        [ service_name         => 'COVERALLS_PERL_SERVICE_NAME' ],
+    );
+    for my $override (@overrides) {
+        my ($key, $name) = @$override;
+        my $value = env_value($name);
+        $json->{$key} = $value if defined $value;
     }
+    # "false" is what Travis CI gives on a push, which a CI template may pass on as it is.
+    delete $json->{service_pull_request}
+        if defined $ENV{COVERALLS_PULL_REQUEST} && $ENV{COVERALLS_PULL_REQUEST} eq 'false';
 
     return ($json, $endpoint);
 }
@@ -477,9 +535,31 @@ job fails. Set this to C<true> to exit 0 instead, e.g. when coverage is optional
 pull requests from forks get no repo token. When C<cover> makes several reports, the ones after
 C<coveralls> are not made after a failure, so put C<coveralls> last. Any value other than empty, C<false> and C<0> turns it on.
 
+=head2 COVERALLS_SERVICE_NAME, COVERALLS_SERVICE_NUMBER, COVERALLS_SERVICE_JOB_ID, COVERALLS_SERVICE_JOB_NUMBER, COVERALLS_PULL_REQUEST
+
+Send these as the name of the CI service, the build number, the job ID, the job number and the
+number of the pull request, in place of what is detected from the CI service. On a CI service
+not listed in L</USAGE>, set them to send what the CI service knows. C<COVERALLS_PULL_REQUEST>
+set to C<false> means that the build is not for a pull request.
+
 =head2 COVERALLS_PERL_SERVICE_NAME
 
-Sends this as the name of the CI service, in place of the one detected (e.g. C<github>).
+Another name of C<COVERALLS_SERVICE_NAME>, which wins when both are set.
+
+=head2 COVERALLS_GIT_BRANCH, COVERALLS_GIT_COMMIT
+
+Send these as the branch and the commit ID, in place of the ones detected from the CI service
+and from git.
+
+=head2 GIT_ID, GIT_BRANCH, GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL, GIT_MESSAGE
+
+The commit ID, the branch, the author, the committer and the message of the commit, for a build
+outside a git repository (e.g. from another version control system, or from a tarball). There
+git is not run, and what is not set is not sent. In a git repository, what git says comes first,
+and these only fill in what git does not give: CI jobs often set C<GIT_AUTHOR_NAME> and the
+like for the commits they make, and Jenkins sets C<GIT_BRANCH> to C<origin/E<lt>branchE<gt>>.
+To give the branch or the commit ID in a git repository, use C<COVERALLS_GIT_BRANCH> and
+C<COVERALLS_GIT_COMMIT>.
 
 =head1 SEE ALSO
 
