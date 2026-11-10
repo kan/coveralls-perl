@@ -8,6 +8,7 @@ Versions up to 0.32.1 were released from `Changes`, before this file existed.
 ## [Unreleased]
 
 - Rewrite the description, `COVERALLS_ENDPOINT` and the links in the documentation, and add a Coveralls badge to the README (#67)
+- Leave the bots (tagpr's release pull requests and Dependabot) out of the contributors in the distribution's metadata (#71)
 ## [1.0.0] - 2026-11-07
 
 - Update the usage examples for GitHub Actions (with parallel builds), Travis CI and the other CI services, and document `COVERALLS_NO_FAIL` and `COVERALLS_PERL_SERVICE_NAME` (#58)
