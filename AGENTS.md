@@ -56,7 +56,11 @@
    では git を呼ばず、`GIT_ID` / `GIT_BRANCH` / `GIT_AUTHOR_NAME` などの環境変数だけを使う。作業ツリーの
    中では git の値が先で、環境変数は git が返さなかった項目だけを埋める。分からない値は空文字列にせず、
    項目ごと送らない
-4. `HTTP::Tiny` で `<endpoint>/api/v1/jobs` へ、JSON を multipart の `json_file` に入れて POST し、
+4. JSON は `json_encoder` が作る。`@JSON_ENCODERS`（`Cpanel::JSON::XS`。`cpanfile` では `recommends`）が
+   入っていればそれを使い、無ければ JSON::PP を使う。大きなディストリビューションでは JSON の生成が `report` の
+   時間のほとんどを占めるため。JSON::PP と同じ JSON になること（`ascii`）を `t/01_basic.t` の「json_encoder」で
+   確かめている。候補を足すときは `cpanfile` にも宣言し、CI で入るようにする（入っていない候補は比べられない）。
+   `HTTP::Tiny` で `<endpoint>/api/v1/jobs` へ、JSON を multipart の `json_file` に入れて POST し、
    結果を標準出力に出す（`json_file_request`）。これは API のドキュメントに書かれた形。1.0.0 まで使って
    いた form の `json=` も送れてはいたが、ドキュメントには無い。各ファイルには、ファイルのバイト列の
    MD5 を `source_digest` として付ける（`blib/` の下のファイルはコピー元のもの）。`source` も残す

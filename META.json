@@ -43,6 +43,9 @@
          }
       },
       "runtime" : {
+         "recommends" : {
+            "Cpanel::JSON::XS" : "0"
+         },
          "requires" : {
             "Devel::Cover" : "1.02",
             "Digest::MD5" : "0",
