@@ -21,16 +21,25 @@ jobs:
         # current runners can no longer pull (containerd v2.1). perl:5.22 and 5.24 are based on
         # Debian 9 (glibc 2.24), where the Node 24 that actions/checkout runs on does not start
         # (it needs glibc 2.28). 5.26 is the oldest usable image.
+        #
+        # The newest one is the Perl of the development container (Dockerfile), not `latest`, so
+        # that both move in the same pull request (AGENTS.md, "テスト").
         perl-version:
           - '5.26'
           - '5.28'
-          - 'latest'
+          - '5.44'
+        # The newest one also sends this module's own coverage (Run Cover).
+        include:
+          - perl-version: '5.44'
+            cover: true
 
     container:
       image: perl:${{ matrix.perl-version }}
 
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - name: Configure git
         run: git config --system --add safe.directory '*'
       - name: perl -V
@@ -49,15 +58,19 @@ jobs:
             ./Build install
             HARNESS_PERL_SWITCHES=-MDevel::Cover DEVEL_COVER_SELF=1 ./Build test
             cover -report coveralls
-        if: matrix.perl-version == 'latest'
+        if: matrix.cover
 
   # The minimum Perl the module declares (use 5.020). Its perl image cannot be pulled on the
-  # current runners (see above), so this job installs Perl with actions-setup-perl.
+  # current runners (see above), so this job installs Perl with actions-setup-perl. It downloads
+  # Perl from GitHub Releases without a token, which fails with 504 whenever GitHub throttles
+  # anonymous traffic; re-run the failed job then.
   oldest-perl:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - uses: shogo82148/actions-setup-perl@v1.44.4
         with:
           perl-version: '5.20'
@@ -73,9 +86,13 @@ jobs:
 
   # The tarball that publish.yml uploads, made the same way ("Build the tarball" there; change both
   # together), so that what goes into the distribution is checked before a release: scripts/ must
-  # stay out (minil.toml).
+  # stay out (minil.toml). The one difference is where Perl 5.44 comes from: this job runs in the
+  # perl image from Docker Hub, as actions-setup-perl fails with 504 when GitHub throttles
+  # anonymous traffic (see oldest-perl); publish.yml keeps actions-setup-perl (see there).
   dist:
     runs-on: ubuntu-latest
+    container:
+      image: perl:5.44
 
     steps:
       # The whole history, as in publish.yml: Minilla makes x_contributors from `git log`.
@@ -83,9 +100,9 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: shogo82148/actions-setup-perl@v1.44.4
-        with:
-          perl-version: '5.42'
+      # The checkout belongs to another user than the container's root, and Minilla runs git.
+      - name: Configure git
+        run: git config --system --add safe.directory '*'
       # Only what `minil dist` needs: Minilla, the markdown_maker of minil.toml, and
       # Module::Build::Tiny for the Build.PL it runs.
       - name: Install Minilla

@@ -120,9 +120,12 @@ docker compose run --rm perl minil build                  # 生成物の作り�
   `Dockerfile` と一緒にボリューム名も変える（別の版でビルドした XS モジュールは読み込めない）。前の
   ボリュームは `docker volume rm coveralls-perl_<前の名前>` で消す（perl-cpm のころのものは
   `coveralls-perl_perl-local`）
-- **Perl の版は `Dockerfile` の `FROM` と `docker-compose.yml` のボリューム名で揃える。** Dependabot
-  （`dependabot.yml` の `docker`）が PR で上げるのは `Dockerfile` だけだ。その PR を取り込むときは、
-  残りも同じ PR で手で上げる
+- **Perl の版は次の 4 つで揃える。** `Dockerfile` の `FROM`、`docker-compose.yml` のボリューム名、
+  `master.yml` の `perl:<版>`、`publish.yml` の `perl-version`。`master.yml` では、`perl` のマトリクスの
+  最新版と `include:`、`dist` のコンテナが該当する。版を上げるときは `git grep -n '5\.44'` のように
+  前の版で repo を探し、この節や各ファイルのコメントに書いた版も一緒に直す。Dependabot（`dependabot.yml` の `docker`）が PR で
+  上げるのは `Dockerfile` だけだ。その PR を取り込むときは、残りも同じ PR で手で上げる。CI が古い版の
+  まま通っても、新しい版を試したことにはならない
 
 - **`t/01_basic.t` で `get_config` を試す subtest は、最初に `local @ENV{@CI_VARS};` で CI の環境変数を
   すべて消す。** テスト自体が CI の上で走る。`GITHUB_TOKEN` や `GITHUB_ACTIONS` が入っていると、
@@ -130,7 +133,7 @@ docker compose run --rm perl minil build                  # 生成物の作り�
 - `get_git_info` を呼ぶテストは、git の作業ツリーの中で実行する必要がある
 - **テストから `report` を呼ぶときは、`HTTP::Tiny::post_form` を `local` で差し替える。** 差し替えないと
   Coveralls へ実際に POST する。例は `t/01_basic.t` の「report exits non-zero when the upload fails」
-- CI の `master.yml` は perl latest のときだけ、このモジュール自身で自分のカバレッジを Coveralls へ送る
+- CI の `master.yml` は perl 5.44（マトリクスの最新版）のときだけ、このモジュール自身で自分のカバレッジを Coveralls へ送る
   （`DEVEL_COVER_SELF=1`）
 
 ## CI（GitHub Actions）
@@ -138,6 +141,13 @@ docker compose run --rm perl minil build                  # 生成物の作り�
 - action のバージョンは `.github/workflows/actions.lock` で固定している。**`uses:` の行を変えたら、
   repo のルートで `gh actions-lock` を実行し、書き換わったワークフローと lockfile を一緒にコミットする。**
   lockfile を手で編集しない
+- **Linux のジョブは、できるだけ Docker Hub の `perl:<版>` のコンテナで動かす。** actions-setup-perl は
+  Perl を GitHub Releases から認証なしでダウンロードするので、GitHub が匿名のアクセスを絞ると 504 で
+  落ちる。`oldest-perl` と `publish.yml` だけは actions-setup-perl のまま。今の runner で使える `perl` の
+  イメージは 5.26 以降だけで（`master.yml` のマトリクスのコメント）、`publish.yml` はコンテナにすると
+  Node も用意し直すことになるため。504 で落ちたら `gh run rerun <run-id> --failed` で再実行する
+- `actions/checkout` には `persist-credentials: false` を付ける（checkout の認証情報を `.git/config` に
+  残さない）。外してよいのは、そのジョブが checkout の認証情報で push するときだけ
 - Dependabot が action の更新 PR を週 1 回出す（lockfile も書き換わる）。開発用コンテナの `Dockerfile` の
   ベースイメージの更新 PR も出す。その PR で揃えるものは上の「テスト」
 

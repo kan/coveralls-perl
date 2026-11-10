@@ -31,3 +31,11 @@ updates:
       interval: weekly
     cooldown:
       default-days: 3
+    ignore:
+      # Odd minor versions are development releases of Perl, which Docker Hub also publishes.
+      - dependency-name: perl
+        versions:
+          - '>= 5.45, < 5.46'
+          - '>= 5.47, < 5.48'
+          - '>= 5.49, < 5.50'
+          - '>= 5.51, < 5.52'
