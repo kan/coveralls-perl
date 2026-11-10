@@ -297,6 +297,27 @@ subtest 'get_git_info prefers git to the environment' => sub {
     is $got->{branch}, $from_git->{branch}, 'the branch from git, not from GIT_BRANCH';
 };
 
+subtest 'get_git_info reads the head with one git log' => sub {
+    my $inside = `git rev-parse --is-inside-work-tree 2>&1`;
+    plan skip_all => 'not in a git work tree' unless defined $inside && $inside =~ /^true/;
+
+    local @ENV{@CI_VARS};
+    my %one_by_one = (
+        id              => '%H',
+        author_name     => '%aN',
+        author_email    => '%ae',
+        committer_name  => '%cN',
+        committer_email => '%ce',
+        message         => '%s',
+    );
+    $_ = Devel::Cover::Report::Coveralls::git_log($_) for values %one_by_one;
+    delete @one_by_one{ grep { $one_by_one{$_} eq '' } keys %one_by_one };
+    # cmd.exe would expand %H%, %x00% and the like of the joined format with these set.
+    local @ENV{qw(H X00 AN AE CN CE)} = ('expanded') x 6;
+    is_deeply Devel::Cover::Report::Coveralls::get_git_info()->{head}, \%one_by_one,
+        'the same values as a git log for each field';
+};
+
 subtest 'get_git_info outside a git work tree' => sub {
     local @ENV{@CI_VARS};
     local @ENV{qw(GIT_DIR GIT_WORK_TREE)};

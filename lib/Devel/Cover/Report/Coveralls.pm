@@ -100,7 +100,8 @@ sub git_log {
     my $text = '';
 
     # No quotes around the format: cmd.exe on Windows does not take single quotes as quotes, so git
-    # would print them. The formats used here have no spaces and no characters a shell changes.
+    # would print them. A format given here has no spaces and one % at most: cmd.exe expands
+    # %name% when a variable of that name is set.
     my $command = "git log -1 --encoding=UTF-8 --pretty=format:$format";
     if (open(my $fh, '-|:encoding(UTF-8)', $command)) {
         $text = do { local $/; <$fh> };
@@ -108,6 +109,28 @@ sub git_log {
     }
 
     return $text;
+}
+
+# The values of the git log formats, from one git log. The formats are joined by NUL and git is
+# run without a shell, so that cmd.exe on Windows does not expand the %...% between them. Perl
+# before 5.22 on Windows has no list form of a piped open; there each format gets a git log of
+# its own (git_log).
+sub git_log_fields {
+    my @formats = @_;
+
+    my $fh;
+    my $opened = eval {
+        open $fh, '-|:encoding(UTF-8)',
+            'git', 'log', '-1', '--encoding=UTF-8', '--pretty=format:' . join('%x00', @formats);
+    };
+    return map { git_log($_) } @formats if !defined $opened && $@;
+    return ('') x @formats if !$opened;
+
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    # A NUL in the last field (the subject) only cuts it short.
+    my @values = split /\0/, $text // '', -1;
+    return map { $values[$_] // '' } 0 .. $#formats;
 }
 
 # Turn the output of `git remote -v` into the list of remotes to send.
@@ -170,10 +193,11 @@ my @GIT_HEAD_FIELDS = (
 sub get_git_info {
     my $in_repo = in_git_work_tree();
 
+    my @from_git = $in_repo ? git_log_fields(map { $_->[2] } @GIT_HEAD_FIELDS) : ();
     my %head;
-    for my $field (@GIT_HEAD_FIELDS) {
-        my ($key, $name, $format) = @$field;
-        my $value = $in_repo ? git_log($format) : '';
+    for my $i (0 .. $#GIT_HEAD_FIELDS) {
+        my ($key, $name) = @{ $GIT_HEAD_FIELDS[$i] };
+        my $value = $from_git[$i] // '';
         $value = env_value($name) // '' if $value eq '';
         $head{$key} = $value if $value ne '';
     }
