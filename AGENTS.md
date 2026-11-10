@@ -42,7 +42,11 @@
 
 1. `$options->{file}` の各ファイルについて `get_source` がソースを読み、行ごとのカバレッジを配列にする。
    `_parse_line` は「その行に文がない → `undef`」「uncoverable → `undef`」「それ以外 → 実行回数」を返す。
-   ファイル名の先頭の `blib/` は外す
+   ファイル名の先頭の `blib/` は外す。開けないファイルは送らない。
+   `get_branches` がブランチカバレッジを、API の `branches` の形（ブランチごとに行、block、branch、
+   実行回数の 4 つを並べた配列）にする。block はその行の判定の順番、branch は判定の真が 0 で偽が 1。
+   uncoverable のブランチは送らない。ブランチカバレッジを集めていないとき（`-coverage statement`）は
+   `branches` を送らない
 2. `get_config` が環境変数と `.coveralls.yml` から、送信する JSON の CI 関連の項目とエンドポイントを決める
 3. `get_git_info` が `git log -1` / `git remote -v` / `git branch` を外部コマンドで呼んで git 情報を作る
    （失敗しても `eval` で空ハッシュになり、送信は続く）。git の作業ツリーの外（`in_git_work_tree` が偽）

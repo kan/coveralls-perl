@@ -365,6 +365,30 @@ sub _parse_line ($) {
     };
 }
 
+# The branch coverage of a file, in the form of the jobs API: a flat list of four numbers for each
+# branch, its line, its block (the decision on that line, from 0), its branch (0 for the true side
+# of the decision, 1 for the false side) and the times it was taken, as the official
+# coverage-reporter sends LCOV's BRDA. Branches marked uncoverable are left out. $criterion is
+# undef when the branch coverage was not collected (cover -coverage statement).
+sub get_branches {
+    my ($criterion, $lines) = @_;
+
+    my @branches;
+    return \@branches unless $criterion;
+    for my $line (1 .. $lines) {
+        my $decisions = $criterion->location($line) or next;
+        for my $block (0 .. $#$decisions) {
+            my $decision = $decisions->[$block];
+            for my $branch (0 .. $decision->total - 1) {
+                next if $decision->uncoverable($branch);
+                push @branches, $line, $block, $branch, $decision->value($branch) // 0;
+            }
+        }
+    }
+
+    return \@branches;
+}
+
 sub report {
     my ($pkg, $db, $options) = @_;
 
@@ -376,7 +400,10 @@ sub report {
         my $f = $cover->file($file);
         my $c = $f->statement();
 
-        push @sfs, get_source( $file, _parse_line $c );
+        my $sf = get_source( $file, _parse_line $c ) or next;
+        my $branches = get_branches($f->branch, scalar @{ $sf->{coverage} });
+        $sf->{branches} = $branches if @$branches;
+        push @sfs, $sf;
     }
 
     my ($json, $endpoint) = eval { get_config() };
@@ -537,6 +564,12 @@ as C<cover -test -report coveralls> to run them too.
 It sends the coverage of each line of each source file, with the git commit, branch and
 remotes of the working tree. On the CI services listed in L</USAGE>, it also sends the
 build number, job, branch and pull request the CI service gives.
+
+When L<Devel::Cover> collected the branch coverage (it does by default), it is sent too: how
+many times each side of each decision (C<if>, C<unless>, C<elsif>, the ternary operator and so
+on) was taken. Branches marked C<uncoverable> are left out. The condition coverage of
+Devel::Cover (C<&&>, C<||> and C<//>) is not sent. Whether Coveralls counts branches
+in the coverage of the repository is a setting of the repository on Coveralls.
 
 =head1 ENVIRONMENT
 

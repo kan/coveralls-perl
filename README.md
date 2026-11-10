@@ -121,6 +121,12 @@ It sends the coverage of each line of each source file, with the git commit, bra
 remotes of the working tree. On the CI services listed in ["USAGE"](#usage), it also sends the
 build number, job, branch and pull request the CI service gives.
 
+When [Devel::Cover](https://metacpan.org/pod/Devel%3A%3ACover) collected the branch coverage (it does by default), it is sent too: how
+many times each side of each decision (`if`, `unless`, `elsif`, the ternary operator and so
+on) was taken. Branches marked `uncoverable` are left out. The condition coverage of
+Devel::Cover (`&&`, `||` and `//`) is not sent. Whether Coveralls counts branches
+in the coverage of the repository is a setting of the repository on Coveralls.
+
 # ENVIRONMENT
 
 These environment variables change what is sent. The variables that the CI services set are
