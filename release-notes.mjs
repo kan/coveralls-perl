@@ -13,7 +13,7 @@
  * 節が無いか、重複しているか、空なら exit 1（読み方は `changelog.mjs`）。
  */
 import { relative } from 'node:path';
-import { ReleaseError, changelogPath, readRootFile, readSection, unwrapLines } from './changelog.mjs';
+import { ReleaseError, changelogPath, isPrereleaseTag, readRootFile, readSection, unwrapLines } from './changelog.mjs';
 
 const arg = process.argv[2];
 if (!arg) {
@@ -22,7 +22,7 @@ if (!arg) {
   process.exit(1);
 }
 // タグ（`v0.6.0`）は節の名前（`0.6.0`）に、プレリリースのタグ（`v0.6.0-rc.1`）は `Unreleased` にする
-const name = /^v\d+\.\d+\.\d+-/.test(arg) ? 'Unreleased' : /^v\d/.test(arg) ? arg.slice(1) : arg;
+const name = isPrereleaseTag(arg) ? 'Unreleased' : /^v\d/.test(arg) ? arg.slice(1) : arg;
 try {
   console.log(unwrapLines(readSection(readRootFile(changelogPath), name)));
 } catch (e) {

@@ -7,33 +7,19 @@
  * 古いまま残る。何も落ちず、マージ後のタグは先頭のファイルの版から決まる。そこで、並べた全部の
  * ファイルで、本来の版の場所が提案の版になっているかを見る。
  */
-import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { basename, extname } from 'node:path';
 import { readPackage } from './cargo-lock.mjs';
-import { ReleaseError, readRootFile } from './changelog.mjs';
-
-/** 作業ディレクトリ（repo のルート）からの相対パス */
-const tagprPath = '.tagpr';
+import { ReleaseError, readRootFile, tagprConfig, tagprPath } from './changelog.mjs';
 
 /**
  * `.tagpr` の `versionFile` の一覧。`.tagpr` が無いか、`versionFile = -`（版をタグだけで持つ）
- * なら空。読み方は tagpr と同じ git config の形式なので、`git config` に任せる。
+ * なら空。
  * @returns {string[]}
  */
 function tagprVersionFiles() {
-  let value;
-  try {
-    value = execFileSync('git', ['config', '--file', tagprPath, '--get', 'tagpr.versionFile'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
-  } catch (e) {
-    // 終了コード 1 はキーが無い。ファイルが無いときも 1 になる
-    if (e?.status === 1) return [];
-    throw new ReleaseError(`Cannot read versionFile from ${tagprPath}: ${String(e?.stderr ?? e?.message).trim()}`);
-  }
-  if (value === '-') return [];
+  const value = tagprConfig('versionFile');
+  if (value === null || value === '-') return [];
   return value.split(',').map((f) => f.trim()).filter((f) => f !== '');
 }
 
@@ -131,18 +117,30 @@ function ownVersion(path) {
 }
 
 /**
+ * `.tagpr` の `versionFile` のうち、版が `version` でない最初のファイル。全部そうなら `null`。
+ * 読めない、形が決まりに合わないファイルは `ReleaseError` で落とす
+ * @param {string} version
+ * @returns {{ path: string, found: string } | null}
+ */
+export function versionFileMismatch(version) {
+  for (const path of tagprVersionFiles()) {
+    const found = ownVersion(path);
+    if (found !== version) return { path, found };
+  }
+  return null;
+}
+
+/**
  * `.tagpr` の `versionFile` の全部のファイルが、提案の版になっているかを確かめる。
  * package.json と Cargo.toml は npm-lock.mjs / cargo-lock.mjs も確かめるが、そちらは
  * 「versionFile に入っていない」ときに気付くためのもので、ここと役目が違う
  * @param {string} version tagpr が提案する版（`X.Y.Z`）
  */
 export function checkVersionFiles(version) {
-  for (const path of tagprVersionFiles()) {
-    const found = ownVersion(path);
-    if (found !== version) {
-      throw new ReleaseError(
-        `${path} says ${found}, but tagpr proposes ${version}. tagpr rewrites only the first occurrence of the current version in each versionFile; if the same string appears earlier in the file, that one was rewritten instead`,
-      );
-    }
+  const m = versionFileMismatch(version);
+  if (m) {
+    throw new ReleaseError(
+      `${m.path} says ${m.found}, but tagpr proposes ${version}. tagpr rewrites only the first occurrence of the current version in each versionFile; if the same string appears earlier in the file, that one was rewritten instead`,
+    );
   }
 }

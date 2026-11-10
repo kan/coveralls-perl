@@ -1,0 +1,328 @@
+name: publish-npm
+
+# **取り込み先の publish のワークフローから呼ぶ reusable workflow（issue #15）。** バージョンのタグを
+# npm へ出し、GitHub Release を作る。この repo では動かない（`workflow_call` しか持たない）。
+# 呼び方と入力は README の「The npm publish workflow」。
+#
+# 呼ぶ側は、tagpr.yml の `release-workflow` に指定された取り込み先の workflow（`publish.yml` など）。
+# tagpr.yml がタグを ref にして `workflow_dispatch` で起動する（GITHUB_TOKEN で push したタグでは
+# `push: tags` が起動しないため）。`push: tags` は手でタグを打ち直したとき用。
+#
+# **npm の Trusted Publisher は、呼ぶ側の workflow のファイル名で照合する**（npm のドキュメントの
+# Troubleshooting:「validation checks the calling workflow's name instead of the workflow that
+# actually contains the publish command」）。そのため取り込み先の Trusted Publisher の登録は
+# 変えない。呼ぶ側のファイル名を変えると publish が落ちる。
+#
+# **権限ごとにジョブを分ける。** 依存のコード（`npm ci` の install script、テスト、ビルド）が
+# 走るのは `build` だけで、`build` は書き込みの権限を何も持たない。
+#
+# | ジョブ | 権限 | すること |
+# |---|---|---|
+# | `build` | `contents: read` | 検査、テスト、`npm pack`。リリースノート（`notes`）、tgz（`package`）、添付するファイル（`release-files`）を artifact に置く |
+# | `publish` | `id-token: write` | `package` を `npm publish` するだけ。checkout も `npm ci` もしない |
+# | `release` | `contents: write` | `notes` と `release-files` で GitHub Release を作るか書き直すだけ。npm に触らない |
+#
+# `id-token: write` のジョブで依存のコードが走ると、そのコードが npm 向けの OIDC トークンを取り、
+# Trusted Publisher 経由で好きな版や中身を publish できる（`persist-credentials: false` でも、
+# トークンを取るための環境変数は残る）。
+#
+# **防げないこと:** `build` で走る依存のコード（vite のプラグインなど）が `dist/` を書き換えれば、
+# その tgz と添付するファイルがそのまま出る。配るものはビルドの出力なので、これは分割では防げない。
+# 分割で防ぐのは、依存のコードがトークンを手にすることだけ。
+#
+# **この workflow に `concurrency` を置かない。** 呼ぶ側が `publish-${{ github.ref }}` などで
+# 1 つのタグに 1 run に絞る（README）。同じ名前の group を両方に置くと、GitHub が deadlock として止める
+on:
+  workflow_call:
+    inputs:
+      check:
+        description: build のジョブで `npm ci` の後に走らせる検査のコマンド（`npm run lint && npm test` など）。repo のルートで bash で実行する
+        type: string
+        required: true
+      check-tarball:
+        description: '`npm pack` の後に走らせるコマンド。tgz のパスを TARBALL で渡す。空なら走らせない'
+        type: string
+        default: ''
+      pack-ignore-scripts:
+        description: '`npm pack` に `--ignore-scripts` を付ける。`check` が作ったビルドをそのまま詰めるとき（prepare でもう一度ビルドしない）'
+        type: boolean
+        default: false
+      access:
+        description: '`npm publish --access` に渡す値（scoped の公開パッケージなら public）。空なら付けない'
+        type: string
+        default: ''
+      release-files:
+        description: GitHub Release に添付するファイル（repo のルートからのパス。1 行に 1 つ）。build のジョブの最後に集める。空なら添付しない
+        type: string
+        default: ''
+      timeout-minutes:
+        description: build のジョブの timeout
+        type: number
+        default: 30
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build and check
+    # **タグのときだけ動かす。** `workflow_dispatch` は main などでも起動できる。版の一致の検査
+    # だけに頼らず、job ごと止める（後の 2 つは `needs` で止まる）
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
+    outputs:
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+      spec: ${{ steps.tag.outputs.spec }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          # タグがリリースのブランチの上にあるかを見るために、履歴ごと取る。`filter: blob:none` は
+          # 付けない。後で履歴のファイルを読むと遅れて取りに行き、認証を残していないので private の
+          # repo では落ちる
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      # 次の 2 つの検査は Node の組み込みしか使わないので、npm ci より先に置く（手で打ったタグが
+      # 誤っていたとき、依存の取得を待たずに落ちる）。
+      #
+      # タグと `package.json` の版の一致と、タグの commit がリリースのブランチ（`.tagpr` の
+      # `releaseBranch`）の上にあることを確かめる（`release-tag.mjs`）。`1.0.0-rc.1` のような版は
+      # プレリリース。npm の dist-tag を `next` にして `latest` を動かさず、Release もプレリリースに
+      # する（`release-notes.mjs` は `Unreleased` の節を出す）
+      - name: Check the tag
+        id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+        # release-tag.mjs は package.json が無くても通る（CPAN の repo のため）ので、ここで確かめる
+        run: |
+          set -euo pipefail
+          if [ ! -f package.json ]; then
+            echo "::error::There is no package.json at the root of the repository"
+            exit 1
+          fi
+          node scripts/tagpr/release-tag.mjs "$TAG" >>"$GITHUB_OUTPUT"
+
+      # **Release の本文は CHANGELOG のその版の節。** 節が無ければ、npm へ出す前に止める（出した後に
+      # 止まると、npm にはあるのに Release が無い版ができる）。リリース PR を通っていれば節はあるので、
+      # 拾うのは手で打ったタグのとき。出したものをそのまま本文に使う（検査したもの = 本文）
+      - name: Take the release notes from CHANGELOG.md
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/notes"
+          node scripts/tagpr/release-notes.mjs "$TAG" > "$RUNNER_TEMP/notes/release-notes.md"
+
+      # **`npm ci` より前に置く。** 後に置くと、依存のコードが本文を書き換えられる。
+      # `overwrite` は「Re-run all jobs」で build がもう一度置くとき用
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: notes
+          path: ${{ runner.temp }}/notes/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+      - run: npm ci
+
+      # 入力は呼ぶ側の workflow のファイルに書いたものなので、式で `run:` に埋めず、環境変数で渡す
+      - name: Check
+        env:
+          CHECK: ${{ inputs.check }}
+        run: bash -euo pipefail -c "$CHECK"
+
+      # publish するのはこの tgz そのもの。`pack-ignore-scripts` が false なら、prepack / prepare が
+      # ここでビルドする
+      - name: Pack the tarball
+        id: pack
+        env:
+          IGNORE_SCRIPTS: ${{ inputs.pack-ignore-scripts }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/package"
+          args=(--pack-destination "$RUNNER_TEMP/package")
+          if [ "$IGNORE_SCRIPTS" = true ]; then
+            args+=(--ignore-scripts)
+          fi
+          npm pack "${args[@]}"
+          shopt -s nullglob
+          tgz=("$RUNNER_TEMP"/package/*.tgz)
+          if [ "${#tgz[@]}" -ne 1 ]; then
+            echo "::error::Not exactly one tarball: ${tgz[*]}"
+            exit 1
+          fi
+          # publish のジョブは artifact をこの名前で受け取る
+          echo "tarball=${tgz[0]##*/}" >>"$GITHUB_OUTPUT"
+
+      # 雛形から作った利用側がこの tgz だけで通るか、などの検査。リリース PR のマージは main の CI を
+      # 待たずに publish まで進むので、出す前にここで見る。npm へ出た版は打ち直せない
+      - name: Check the tarball
+        if: inputs.check-tarball != ''
+        env:
+          CHECK_TARBALL: ${{ inputs.check-tarball }}
+          TARBALL: ${{ runner.temp }}/package/${{ steps.pack.outputs.tarball }}
+        run: bash -euo pipefail -c "$CHECK_TARBALL"
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: package
+          path: ${{ runner.temp }}/package/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+      # Release に添付するファイル。tgz の中のものと同じビルドの出力。Release にはファイル名
+      # （basename）で載るので、同じ名前が 2 つあれば npm へ出す前に落とす（後で落ちると、npm には
+      # あるのに Release が無い版ができる）
+      - name: Check the names of the release files
+        if: inputs.release-files != ''
+        env:
+          RELEASE_FILES: ${{ inputs.release-files }}
+        run: |
+          set -euo pipefail
+          dups=$(grep -v '^[[:space:]]*$' <<<"$RELEASE_FILES" | awk -F/ '{ print $NF }' | sort | uniq -d)
+          if [ -n "$dups" ]; then
+            echo "::error::release-files has more than one file named: ${dups//$'\n'/, }"
+            exit 1
+          fi
+      - if: inputs.release-files != ''
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: release-files
+          path: ${{ inputs.release-files }}
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
+          overwrite: true
+
+  publish:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      # **Trusted Publishing（OIDC）。** token を secret に置かない代わりに、npm の側で「この repo の
+      # この workflow（呼ぶ側のファイル名）からの publish を許す」と登録しておく。provenance も
+      # 自動で付く。呼ぶ側のジョブにも `id-token: write` が要る。
+      # npm の Trusted Publisher は direct publish を許可しておくこと。「npm stage publish」だけの
+      # ままだと、`npm publish` が `403 OIDC permission denied` で落ちる
+      id-token: write
+    steps:
+      # checkout しない。ここで走るのは Node と npm と、build が作った tgz だけ。
+      # tgz の publish では lifecycle script（prepack など）は走らない。
+      #
+      # `registry-url` は npm の Trusted Publishing の手順どおり。setup-node はこれで `.npmrc` に
+      # `NODE_AUTH_TOKEN` を読む行を書き、`NODE_AUTH_TOKEN` に仮の値（`XXXXX-...`）を入れる。
+      # npm は OIDC を先に使うので普段は効かないが、**OIDC の交換に失敗すると、npm はその仮の値で
+      # 認証を試みて 401 / 404 で落ちる。** そのエラーを見たら、token ではなく OIDC の側
+      # （`id-token: write`、npm の Trusted Publisher の登録）を疑う。
+      # `check-latest` はランナーにある古い 24.x を使わないため（下の npm の版）
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          check-latest: true
+          registry-url: https://registry.npmjs.org
+
+      # **Trusted Publishing は npm 11.5.1 以降にしか無い。** Node 24 に同梱の npm で足りるので、
+      # `npm install -g npm@latest` はしない（固定していない版の npm をこのジョブで取ってこない）
+      - name: Check the version of npm
+        run: |
+          npm_version="$(npm --version)"
+          if [ "$(printf '%s\n' 11.5.1 "$npm_version" | sort -V | head -n1)" != 11.5.1 ]; then
+            echo "::error::npm $npm_version has no Trusted Publishing (11.5.1 or later is needed)"
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: package
+          path: ${{ runner.temp }}/package
+
+      # すでに npm にある版は出さない（「Re-run all jobs」でやり直すとき、publish を飛ばして release
+      # まで進める）。無い版は `npm view` が E404 で落ちる（npm 11 で確かめた）。ほかの失敗（registry の
+      # 一時的なエラーなど）では、出したかどうかが分からないので落とす。tgz の名前と、名前と版（spec）は build が出す（tgz を作ったのも build なので、
+      # 信頼の範囲は変わらない）。プレリリースは dist-tag `next` で出す（`latest` にしない）
+      - name: Publish to npm
+        env:
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+          SPEC: ${{ needs.build.outputs.spec }}
+          TARBALL: ${{ runner.temp }}/package/${{ needs.build.outputs.tarball }}
+          ACCESS: ${{ inputs.access }}
+        run: |
+          set -euo pipefail
+          if out=$(npm view "$SPEC" version 2>&1); then
+            echo "::notice::$SPEC is already on npm, so it is not published again"
+            exit 0
+          fi
+          if ! grep -q 'E404' <<<"$out"; then
+            echo "$out"
+            echo "::error::npm view $SPEC failed, so it is not known whether it is on npm"
+            exit 1
+          fi
+          args=()
+          if [ "$PRERELEASE" = true ]; then
+            args+=(--tag next)
+          fi
+          if [ -n "$ACCESS" ]; then
+            args+=(--access "$ACCESS")
+          fi
+          npm publish "$TARBALL" "${args[@]}"
+
+  release:
+    name: Create the GitHub release
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write  # GitHub Release を作り、ファイルを添付する
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: notes
+          path: ${{ runner.temp }}/notes
+      - if: inputs.release-files != ''
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: release-files
+          path: ${{ runner.temp }}/release-files
+
+      # **npm publish の後に置く**（`needs`）。逆にすると、publish に失敗した版の Release が残る。
+      # ジョブが分かれているので、ここだけ落ちたら `gh run rerun <run ID> --failed` でこのジョブ
+      # だけをやり直せる。checkout しないので、repo は `GH_REPO` で渡す。
+      #
+      # Release が既にあれば（手で作った、前の run が作った後に落ちた）、本文、題、プレリリースかを
+      # 書き直し、ファイルを上書きで添付する。`--verify-tag` はタグが実在することを確かめる。
+      # 本文は CHANGELOG のその版の節。commit の羅列（`--generate-notes`）にしないのは、利用者に
+      # 届く変更と依存の更新が同じ重さで並ぶため
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          notes="$RUNNER_TEMP/notes/release-notes.md"
+          files=()
+          if [ -d "$RUNNER_TEMP/release-files" ]; then
+            while IFS= read -r -d '' f; do
+              files+=("$f")
+            done < <(find "$RUNNER_TEMP/release-files" -type f -print0 | sort -z)
+          fi
+          # 無ければ作り、あってもなくても同じ書き直しを通す（フラグを 1 か所にする）。作るときにも
+          # `--prerelease` を渡すのは、プレリリースが一度でも Latest の Release にならないため
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::notice::the release $TAG was already there, so its notes, title and files are replaced"
+          else
+            gh release create "$TAG" --verify-tag --notes-file "$notes" --prerelease="$PRERELEASE"
+          fi
+          gh release edit "$TAG" --title "$TAG" --notes-file "$notes" --prerelease="$PRERELEASE"
+          if [ "${#files[@]}" -gt 0 ]; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+          fi
