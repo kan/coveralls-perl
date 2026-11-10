@@ -106,7 +106,7 @@ jobs:
       # anonymous traffic. It fails before the tarball is made and before anything goes to PAUSE,
       # so re-run the failed jobs then (the notes artifact above is overwritten).
       # A container here would also need Node for the steps above.
-      - uses: shogo82148/actions-setup-perl@v1.44.4
+      - uses: shogo82148/actions-setup-perl@v1.44.5
         with:
           perl-version: '5.44'
       # The dependencies of the tests, and of `minil dist` (Minilla, and the markdown_maker of
