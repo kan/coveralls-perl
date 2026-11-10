@@ -127,6 +127,10 @@ on) was taken. Branches marked `uncoverable` are left out. The condition coverag
 Devel::Cover (`&&`, `||` and `//`) is not sent. Whether Coveralls counts branches
 in the coverage of the repository is a setting of the repository on Coveralls.
 
+The report holds the text of every source file. On a large project, install
+[Cpanel::JSON::XS](https://metacpan.org/pod/Cpanel%3A%3AJSON%3A%3AXS): it is used when installed, and makes the report several times faster than
+the pure-Perl [JSON::PP](https://metacpan.org/pod/JSON%3A%3APP) used otherwise.
+
 # ENVIRONMENT
 
 These environment variables change what is sent. The variables that the CI services set are

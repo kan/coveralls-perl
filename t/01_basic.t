@@ -644,6 +644,54 @@ subtest 'get_branches' => sub {
         'nothing when the branch coverage was not collected';
 };
 
+subtest 'json_encoder' => sub {
+    {
+        local @Devel::Cover::Report::Coveralls::JSON_ENCODERS = ('No::Such::Module');
+        my @warnings;
+        local $SIG{__WARN__} = sub { push @warnings, @_ };
+        is ref Devel::Cover::Report::Coveralls::json_encoder(), 'JSON::PP',
+            'JSON::PP when no candidate is installed';
+        is_deeply \@warnings, [], 'without a warning';
+    }
+    {
+        # A module that is there but does not load.
+        my $dir = File::Temp::tempdir(CLEANUP => 1);
+        mkdir "$dir/Local";
+        open my $fh, '>', "$dir/Local/BrokenEncoder.pm" or die $!;
+        print $fh "die qq{built for another perl\\n};\n";
+        close $fh;
+        local @INC = ($dir, @INC);
+        local @Devel::Cover::Report::Coveralls::JSON_ENCODERS = ('Local::BrokenEncoder');
+        my @warnings;
+        local $SIG{__WARN__} = sub { push @warnings, @_ };
+        is ref Devel::Cover::Report::Coveralls::json_encoder(), 'JSON::PP',
+            'JSON::PP when the candidate does not load';
+        like "@warnings", qr/Local::BrokenEncoder is not used: built for another perl/, 'with a warning';
+    }
+
+    my @installed = grep { eval { (my $f = "$_.pm") =~ s!::!/!g; require $f } }
+        @Devel::Cover::Report::Coveralls::JSON_ENCODERS;
+    note 'installed: ' . (join(', ', @installed) || 'none');
+
+    # What a job holds: text decoded from UTF-8 (#81) with a character out of the BMP, the bytes of a
+    # Latin-1 file, control characters, a boolean, numbers and null in the coverage.
+    my $job = {
+        parallel     => \1,
+        service_name => 'github',
+        source_files => [
+            { name => 'a.pm', source => "# \x{3042} \x{1F600}\n\t\"q\" \\ /\x01\x7f\n", coverage => [undef, 0, 12] },
+            { name => 'b.pm', source => "# caf\xe9\n", coverage => [1], branches => [2, 0, 1, 3] },
+        ],
+    };
+    my $want = JSON::PP->new->ascii->canonical->encode($job);
+    like $want, qr/\\u3042 \\ud83d\\ude00/, 'JSON::PP: \\uXXXX, and a surrogate pair out of the BMP';
+    for my $class (@installed) {
+        local @Devel::Cover::Report::Coveralls::JSON_ENCODERS = ($class);
+        my $got = Devel::Cover::Report::Coveralls::json_encoder()->canonical->encode($job);
+        is $got, $want, "$class gives the same JSON as JSON::PP";
+    }
+};
+
 subtest 'json_file_request' => sub {
     my $json = '{"source_files":[{"source":"CoverallsPerl"}]}';
     my ($type, $body) = Devel::Cover::Report::Coveralls::json_file_request($json);

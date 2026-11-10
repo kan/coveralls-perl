@@ -8,6 +8,7 @@ our $CONFIG_FILE = '.coveralls.yml';
 our $API_ENDPOINT_STEM = '/api/v1/jobs';
 our $API_ENDPOINT = 'https://coveralls.io';
 our $SERVICE_NAME = 'coveralls-perl';
+our @JSON_ENCODERS = ('Cpanel::JSON::XS');
 
 use Devel::Cover::DB;
 use Digest::MD5;
@@ -67,6 +68,21 @@ sub get_source {
         source_digest => $digest->hexdigest,
         coverage => \@coverage,
     };
+}
+
+# The encoder of the job's JSON: the first of @JSON_ENCODERS that is installed, else JSON::PP. On a
+# large distribution most of the time of report goes into the encoding, which Cpanel::JSON::XS
+# (recommended in cpanfile) does in a fraction of the time of JSON::PP. With ascii it gives the
+# same JSON as JSON::PP, which t/01_basic.t checks: a character out of ASCII as \uXXXX, one out of
+# the BMP as a surrogate pair.
+sub json_encoder {
+    for my $class (@JSON_ENCODERS) {
+        (my $file = "$class.pm") =~ s!::!/!g;
+        return $class->new->ascii if eval { require $file; 1 };
+        # Installed but not loadable, e.g. built for another version of Perl.
+        warn "$class is not used: $@" if $@ !~ /^Can't locate \Q$file\E in \@INC/;
+    }
+    return JSON::PP->new->ascii;
 }
 
 # The body of a request to the jobs API: the job as a JSON file in the multipart field json_file,
@@ -458,7 +474,7 @@ sub report {
     $json->{git} = apply_ci_git_info($json, eval { get_git_info() } || {});
     $json->{source_files} = \@sfs;
 
-    my $coder = JSON::PP->new->ascii;
+    my $coder = json_encoder();
 
     my ($content_type, $body) = json_file_request($coder->encode($json));
     my $response = HTTP::Tiny->new( verify_SSL => 1 )->request('POST', $endpoint, {
@@ -612,6 +628,10 @@ many times each side of each decision (C<if>, C<unless>, C<elsif>, the ternary o
 on) was taken. Branches marked C<uncoverable> are left out. The condition coverage of
 Devel::Cover (C<&&>, C<||> and C<//>) is not sent. Whether Coveralls counts branches
 in the coverage of the repository is a setting of the repository on Coveralls.
+
+The report holds the text of every source file. On a large project, install
+L<Cpanel::JSON::XS>: it is used when installed, and makes the report several times faster than
+the pure-Perl L<JSON::PP> used otherwise.
 
 =head1 ENVIRONMENT
 

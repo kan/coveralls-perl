@@ -22,6 +22,8 @@ requires 'Digest::MD5';
 requires 'HTTP::Tiny', 0.043;
 requires 'IO::Socket::SSL', 1.42;
 requires 'JSON::PP';
+# Makes the JSON of a large distribution in a fraction of the time JSON::PP takes (#98).
+recommends 'Cpanel::JSON::XS';
 requires 'Mozilla::CA';
 requires 'Net::SSLeay', 1.49;
 requires 'YAML';
