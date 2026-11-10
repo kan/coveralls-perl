@@ -38,7 +38,7 @@ my @found = (
         [ newest($master =~ /^\s*-\s*perl-version:\s*["']?($V)["']?\s*$/mg) ] ],
     [ 'master.yml: the container image perl:<version> (dist)',
         [ $master =~ /^\s*image:\s*perl:($V)/mg ] ],
-    [ 'publish.yml: perl-version of actions-setup-perl',
+    [ 'publish.yml: perl-version passed to publish-cpan.yml',
         [ $publish =~ /^\s*perl-version:\s*["']?($V)["']?\s*$/mg ] ],
 );
 

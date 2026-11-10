@@ -84,18 +84,19 @@ jobs:
             ./Build build
             ./Build test
 
-  # The tarball that publish.yml uploads, made the same way ("Build the tarball" there; change both
-  # together), so that what goes into the distribution is checked before a release: scripts/ must
-  # stay out (minil.toml). The one difference is where Perl 5.44 comes from: this job runs in the
-  # perl image from Docker Hub, as actions-setup-perl fails with 504 when GitHub throttles
-  # anonymous traffic (see oldest-perl); publish.yml keeps actions-setup-perl (see there).
+  # The tarball that publish.yml uploads, made the same way (`minil dist --no-test` in the build job
+  # of the shared publish-cpan.yml, scripts/tagpr/.github/workflows/), so that what goes into the
+  # distribution is checked before a release: scripts/ must stay out (minil.toml). The one
+  # difference is where Perl 5.44 comes from: this job runs in the perl image from Docker Hub, as
+  # actions-setup-perl fails with 504 when GitHub throttles anonymous traffic (see oldest-perl);
+  # publish-cpan.yml uses actions-setup-perl.
   dist:
     runs-on: ubuntu-latest
     container:
       image: perl:5.44
 
     steps:
-      # The whole history, as in publish.yml: Minilla makes x_contributors from `git log`.
+      # The whole history, as in publish-cpan.yml: Minilla makes x_contributors from `git log`.
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
