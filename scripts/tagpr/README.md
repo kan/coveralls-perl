@@ -19,6 +19,7 @@ version in a Perl module and `META.json`, and releases from `master`. The shell 
 |---|---|---|
 | `release-prepare.mjs` | tagpr, as `postVersionCommand` | Turns `## [Unreleased]` into `## [X.Y.Z] - <date in JST>`, adds the version's link definition, and brings `package-lock.json` to the version tagpr put in `package.json` (not with `--changelog-only`) |
 | `release-notes.mjs` | The publish workflow | Prints one section of `CHANGELOG.md`, to check that it exists before publishing and to use it as the GitHub release notes. Given a tag `vX.Y.Z` it prints `## [X.Y.Z]`; given a pre-release tag (`vX.Y.Z-rc.1`, tagged by hand on `main`) it prints `## [Unreleased]` |
+| `release-tag.mjs` | The npm and CPAN publish workflows, before any dependency is installed | Checks that the tag is `v` + the version of `package.json` (when there is one) and of every `versionFile` of `.tagpr`, and that its commit is on `releaseBranch` of `.tagpr`. Prints `prerelease=`, and `spec=` (`name@version`) when there is a `package.json`, for `$GITHUB_OUTPUT` |
 | `release-pending.mjs` | The tagpr workflow, before tagpr | Prints `false` when there is nothing to release (`## [Unreleased]` is empty, and no section is newer than the latest tag), so that tagpr is not run; `true` otherwise |
 | `missed-tags.mjs` | The tagpr workflow, before tagpr | Reads `CHANGELOG.md` to find the versions whose tag was missed, and the version a release pull request's merge commit released, so that the workflow can re-run the run of that merge |
 | `changelog.mjs` | (imported by the others) | How a `CHANGELOG.md` is read and stamped. Written in one place so the release pull request and the publish never disagree. Knows nothing about npm |
@@ -338,16 +339,8 @@ jobs:
 	minorLabels = enhancement
 ```
 
-In the publish workflow, before `npm ci`:
-
-```yaml
-- name: Extract the CHANGELOG section
-  env:
-    TAG: ${{ github.ref_name }}
-  run: node scripts/tagpr/release-notes.mjs "$TAG" > "$RUNNER_TEMP/release-notes.md"
-```
-
-and after `npm publish`, `gh release create "$TAG" --verify-tag --notes-file "$RUNNER_TEMP/release-notes.md"`.
+The publish workflow that `tagpr.yml` starts (`release-workflow: publish.yml`) calls the
+npm publish workflow here (see "The npm publish workflow" below).
 [lily's workflows](https://github.com/kan/lily/tree/main/.github/workflows) are a complete
 example: `tagpr.yml` starts `publish.yml` with `workflow_dispatch` on the new tag.
 
@@ -389,6 +382,145 @@ With Minilla, set `manage_changes = false` in `minil.toml` once `Changes` is rep
 The release branch does not have to be `main`. Set `releaseBranch` in `.tagpr` and
 `on.push.branches` of the calling workflow to the same branch (`master`, for example).
 
+### The npm publish workflow
+
+`.github/workflows/publish-npm.yml` here is a reusable workflow that publishes a version
+tag to npm with Trusted Publishing and then creates its GitHub release. Call it from the
+workflow that `tagpr.yml` starts as `release-workflow`:
+
+```yaml
+name: Publish
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+permissions: {}
+jobs:
+  publish:
+    uses: kan/tagpr-scripts/.github/workflows/publish-npm.yml@<commit SHA>
+    permissions:
+      contents: write  # read the repository, create the release
+      id-token: write  # npm Trusted Publishing
+    with:
+      check: npm run lint && npm test
+      access: public
+```
+
+- **Call it by the same commit SHA as `tagpr.yml` and `scripts/tagpr/`.**
+  `verify-subtree.mjs` checks this line too.
+- **Keep the name of the calling file.** npm's Trusted Publisher checks the name of the
+  calling workflow, not of this one, so the Trusted Publisher stays registered with the
+  repository's own file (`publish.yml`, say). Let it allow direct publishing: with only
+  "npm stage publish" allowed, `npm publish` fails with "403 OIDC permission denied".
+- **Keep the `concurrency` in the calling workflow**, one run per tag that is never
+  cancelled: stopped halfway, a version could be on npm with no release. This workflow
+  has none of its own, so the two do not deadlock.
+- The jobs are split by what they may do. Dependency code (the install scripts of
+  `npm ci`, the checks, the build) runs only in `build`, which can write nothing.
+  `publish` (`id-token: write`) publishes the tarball from `build` with no checkout and no
+  `npm ci`; `release` (`contents: write`) only makes the release.
+- `build` runs only on a `refs/tags/v*` ref. Before `npm ci`, it checks that the tag is
+  `v` + the version of `package.json` and of every `versionFile` of `.tagpr`, and that the
+  tag's commit is on `releaseBranch` of `.tagpr` (`release-tag.mjs`), and that `release-notes.mjs` finds the tag's section of
+  `CHANGELOG.md`.
+- **A prerelease (`vX.Y.Z-rc.1`) goes to npm under the dist-tag `next`**, so it does not
+  become `latest`, and its GitHub release is marked as a prerelease. `package.json` and
+  every `versionFile` of `.tagpr` have to hold that version (`X.Y.Z-rc.1`) on the tagged
+  commit, as for any other tag.
+- A version that `npm view` cannot look up for a reason other than E404 (a registry error,
+  say) fails the run instead of being published: whether it is already out is not known.
+- The files of `release-files` are attached by their names, so two of them with the same
+  name fail `build`, before anything is published.
+- A version already on npm is not published again, so "Re-run all jobs" goes on to the
+  release. A release that is already there gets the notes, the title and the files again.
+  When only `release` fails, re-run it alone: `gh run rerun <run ID> --failed`.
+- The release's title is the tag (`vX.Y.Z`), and its text is the tag's section of
+  `CHANGELOG.md`.
+- Inputs:
+  - `check` (required): the commands to run after `npm ci`, with bash, from the root
+    (`npm run typecheck && npm test`, say).
+  - `check-tarball`: commands to run after `npm pack`, with the path of the tarball in
+    `TARBALL`. For checks of what is published, such as installing it into a template.
+  - `pack-ignore-scripts`: pass `--ignore-scripts` to `npm pack`, to pack the build that
+    `check` made instead of building again in `prepare` (default `false`).
+  - `access`: passed to `npm publish --access` (`public` for a public scoped package).
+    Not passed when empty.
+  - `release-files`: files to attach to the release, one path per line from the root,
+    made by `check` (wema's `dist/wema.html`, say).
+  - `timeout-minutes`: for the `build` job (default 30).
+- If the repository pins its actions with `actions.lock`, run `gh actions-lock` after
+  changing the calling file. The calling file then has no actions of its own.
+
+### The CPAN publish workflow
+
+`.github/workflows/publish-cpan.yml` here is a reusable workflow that uploads a version tag
+of a Perl module made with Minilla to PAUSE and then creates its GitHub release. Call it
+from the workflow that `tagpr.yml` starts as `release-workflow`:
+
+```yaml
+name: publish
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+permissions: {}
+jobs:
+  publish:
+    uses: kan/tagpr-scripts/.github/workflows/publish-cpan.yml@<commit SHA>
+    permissions:
+      contents: write  # read the repository, create the release
+    secrets: inherit
+    with:
+      cpanm-modules: Module::Build::Tiny
+```
+
+- **Call it by the same commit SHA as `tagpr.yml` and `scripts/tagpr/`.**
+  `verify-subtree.mjs` checks this line too.
+- **Keep `PAUSE_USER` and `PAUSE_PASSWORD` in an environment named `cpan` of the calling
+  repository**, not in its repository secrets, so that only the `upload` job reads them.
+  The `environment: cpan` of that job is the calling repository's. Pass
+  `secrets: inherit` too; whether the job sees the environment's secrets without it has
+  not been tried. Limit which refs may deploy to the environment (tags `v*`).
+- **Keep the `concurrency` in the calling workflow**, one run per tag that is never
+  cancelled: stopped after the upload, a version would be on CPAN with no release. This
+  workflow has none of its own, so the two do not deadlock.
+- The jobs are split by what they may do. Dependency code (Minilla, the modules from
+  CPAN, the tests) runs only in `build`, which can write nothing. `upload` has no
+  permissions and no checkout, and sends the tarball from `build` to PAUSE with curl;
+  `release` (`contents: write`) only makes the release.
+- **An upload cannot be taken back**: PAUSE never takes the same file name twice, so a
+  version that went out broken needs a new version. `build` checks all it can first.
+- `build` runs only on a `refs/tags/v*` ref. Before anything from CPAN is installed, it
+  checks that the tag has no GitHub release yet (one that has went to PAUSE already),
+  that every `versionFile` of `.tagpr` holds the tag's version and that the tag's commit
+  is on `releaseBranch` (`release-tag.mjs`), and that `release-notes.mjs` finds the tag's
+  section of `CHANGELOG.md`. A prerelease tag (`vX.Y.Z-rc.1`) fails: it is not a Perl
+  version. `.tagpr` must have a `versionFile` (the module's `.pm` and `META.json`), or
+  the run fails there.
+- The tarball is made with `minil dist --no-test` (the tests ran before it), named from
+  `name` of `META.json` and the version, and must not hold `scripts/tagpr/`: put
+  `"^scripts/"` in `exclude_match` of `[FileGatherer]` in `minil.toml`.
+- "Re-run all jobs" of a finished run stops at the check for a release. When only
+  `release` fails, re-run it alone: `gh run rerun <run ID> --failed`.
+- The release's title is the tag (`vX.Y.Z`), and its text is the tag's section of
+  `CHANGELOG.md`.
+- Inputs:
+  - `test`: the commands to run after the dependencies are installed, with bash, from the
+    root (default `prove -lr t`).
+  - `cpanm-modules`: modules to install besides Minilla and Pod::Markdown::Github,
+    separated by spaces (`Module::Build::Tiny` when `module_maker` of `minil.toml` is
+    `ModuleBuildTiny`).
+  - `perl-version`: given to actions-setup-perl (default `5.44`).
+  - `timeout-minutes`: for the `build` job (default 30).
+- If the repository pins its actions with `actions.lock`, run `gh actions-lock` after
+  changing the calling file.
+
 ## Changing it
 
 **Change this repository, never the copy in `scripts/tagpr/`.** Then, in each repository:
@@ -397,8 +529,8 @@ The release branch does not have to be `main`. Set `releaseBranch` in `.tagpr` a
 git subtree pull -S --prefix=scripts/tagpr https://github.com/kan/tagpr-scripts.git main --squash
 ```
 
-In the same pull request, move the `uses: kan/tagpr-scripts/.github/workflows/tagpr.yml@<SHA>`
-line to the commit of this repository just pulled: the `git-subtree-split` line in the
+In the same pull request, move every `uses: kan/tagpr-scripts/.github/workflows/<workflow>@<SHA>`
+line (`tagpr.yml`, `tagpr-label.yml`, `publish-npm.yml`, `publish-cpan.yml`) to the commit of this repository just pulled: the `git-subtree-split` line in the
 message of the squash commit, or `git ls-remote https://github.com/kan/tagpr-scripts.git main`.
 The squash and merge commits in your repository do not exist here.
 

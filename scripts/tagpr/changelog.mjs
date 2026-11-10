@@ -105,6 +105,13 @@ export function versionHeadings(text) {
 }
 
 /**
+ * プレリリースのタグ（`vX.Y.Z-*`）か。`release-notes.mjs` は `Unreleased` の節を出し、
+ * `release-tag.mjs` は npm の dist-tag を `next` にする。2 つが同じ規則で見るためにここに置く
+ * @param {string} tag
+ */
+export const isPrereleaseTag = (tag) => /^v\d+\.\d+\.\d+-/.test(tag);
+
+/**
  * `X.Y.Z` どうしを比べる。`a` が新しければ正、古ければ負、同じなら 0。
  * @param {string} a
  * @param {string} b
@@ -404,4 +411,26 @@ export function currentGithubRepo(env = process.env) {
     );
   }
   return repo;
+}
+
+/** 作業ディレクトリ（repo のルート）からの相対パス */
+export const tagprPath = '.tagpr';
+
+/**
+ * `.tagpr` の `tagpr.<key>` の値。`.tagpr` が無いか、キーが無ければ `null`。読み方は tagpr と同じ
+ * git config の形式なので、`git config` に任せる（`version-files.mjs` と `release-tag.mjs` が使う）。
+ * @param {string} key `versionFile`、`releaseBranch` など
+ * @returns {string | null}
+ */
+export function tagprConfig(key) {
+  try {
+    return execFileSync('git', ['config', '--file', tagprPath, '--get', `tagpr.${key}`], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+  } catch (e) {
+    // 終了コード 1 はキーが無い。ファイルが無いときも 1 になる
+    if (e?.status === 1) return null;
+    throw new ReleaseError(`Cannot read ${key} from ${tagprPath}: ${String(e?.stderr ?? e?.message).trim()}`);
+  }
 }
