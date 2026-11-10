@@ -14,7 +14,7 @@ jobs:
   rebuild:
     # The same tagpr-scripts commit as `tagpr.yml` and `scripts/tagpr/`; `verify-subtree.mjs` in
     # master.yml checks this line too.
-    uses: kan/tagpr-scripts/.github/workflows/tagpr-label.yml@acd6fdd62871cc7acc6c33fc7e1ceb314e82e428
+    uses: kan/tagpr-scripts/.github/workflows/tagpr-label.yml@9e7ada5d6701b53f66b956ef5abc4290a4e2045f
     permissions:
       actions: write        # start the tagpr workflow
       pull-requests: write  # mark the release pull request draft

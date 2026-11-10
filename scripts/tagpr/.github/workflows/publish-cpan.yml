@@ -1,0 +1,278 @@
+name: publish-cpan
+
+# **取り込み先の publish のワークフローから呼ぶ reusable workflow（issue #16）。** バージョンのタグを
+# PAUSE へ送って CPAN に出し、GitHub Release を作る。この repo では動かない（`workflow_call` しか
+# 持たない）。呼び方と入力は README の「The CPAN publish workflow」。
+#
+# 呼ぶ側は、tagpr.yml の `release-workflow` に指定された取り込み先の workflow（`publish.yml`）。
+# tagpr.yml がタグを ref にして `workflow_dispatch` で起動する（GITHUB_TOKEN で push したタグでは
+# `push: tags` が起動しないため）。`push: tags` は手でタグを打ち直したとき用。
+#
+# **権限ごとにジョブを分ける。** 依存のコード（Minilla、CPAN から入れるモジュール、テスト）が走るのは
+# `build` だけで、`build` は書き込みの権限を何も持たない。
+#
+# | ジョブ | 権限 | すること |
+# |---|---|---|
+# | `build` | `contents: read` | 検査、テスト、`minil dist`。リリースノート（`notes`）と tarball（`dist`）を artifact に置く |
+# | `upload` | なし。呼ぶ側の repo の `cpan` 環境の PAUSE の secret | `dist` を curl で PAUSE へ送るだけ。checkout も、CPAN からの取得もしない |
+# | `release` | `contents: write` | `notes` で GitHub Release を作るだけ |
+#
+# **PAUSE へ送ったものは取り消せない。** PAUSE は同じ名前のファイルを二度受け付けないので、壊れた版を
+# 出したら版を上げるしかない。確かめられることは、すべて `build` で確かめる。
+#
+# **この workflow に `concurrency` を置かない。** 呼ぶ側が `publish-${{ github.ref }}` などで
+# 1 つのタグに 1 run に絞る（README）。同じ名前の group を両方に置くと、GitHub が deadlock として止める
+on:
+  workflow_call:
+    inputs:
+      test:
+        description: build のジョブで依存を入れた後に走らせるテストのコマンド。repo のルートで bash で実行する
+        type: string
+        default: prove -lr t
+      cpanm-modules:
+        description: Minilla と Pod::Markdown::Github のほかに cpanm で入れるモジュール（空白区切り。minil.toml の module_maker が Module::Build::Tiny なら、それ）
+        type: string
+        default: ''
+      perl-version:
+        description: actions-setup-perl に渡す Perl の版
+        type: string
+        default: '5.44'
+      timeout-minutes:
+        description: build のジョブの timeout
+        type: number
+        default: 30
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build and check
+    # **タグのときだけ動かす。** `workflow_dispatch` はブランチでも起動できる（後の 2 つは `needs` で止まる）
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
+    outputs:
+      tarball: ${{ steps.dist.outputs.tarball }}
+    steps:
+      # 履歴ごと取る。Minilla は META.json の x_contributors を `git log` から作るので、浅い clone では
+      # 空の一覧で出てしまう。タグがリリースのブランチの上にあるかも、履歴から確かめる
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+
+      # **Release があるタグは、もう PAUSE へ送ってある。** PAUSE は同じファイルを二度受け付けないので、
+      # 同じタグの 2 回目の run（手で打ったタグを `gh workflow run` でも起動した、終わった run の
+      # 「Re-run all jobs」）はここで止める。落ちた `release` のジョブだけをやり直すなら
+      # `gh run rerun <run ID> --failed`
+      - name: Check that the tag has no release yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        # 「無い」とみなすのは `release not found` のときだけ。API の失敗（認証、5xx）を「無い」と読むと、
+        # 送ったことのある版が upload まで進み、PAUSE に断られて遅く落ちる
+        run: |
+          if gh release view "$TAG" >/dev/null 2>"$RUNNER_TEMP/release-view.err"; then
+            echo "::error::$TAG already has a GitHub release; it was uploaded to PAUSE already"
+            exit 1
+          fi
+          if ! grep -q 'release not found' "$RUNNER_TEMP/release-view.err"; then
+            cat "$RUNNER_TEMP/release-view.err" >&2
+            echo "::error::Cannot see whether $TAG has a GitHub release"
+            exit 1
+          fi
+
+      # **プレリリースのタグは CPAN に出さない。** `X.Y.Z-rc.1` は Perl の版として扱えない。版の検査より
+      # 前に置く（後に置くと、`.pm` の版がタグと違うというエラーに隠れる）
+      - name: Refuse a prerelease tag
+        if: contains(github.ref_name, '-')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          echo "::error::$TAG is a prerelease tag, which is not released to CPAN"
+          exit 1
+
+      # 次の 2 つは Node の組み込みしか使わないので、CPAN から何かを入れる前に置く（手で打ったタグが
+      # 誤っていたとき、ここで落ちる）。
+      #
+      # タグと `.tagpr` の versionFile（`.pm` と META.json）の版の一致と、タグの commit がリリースの
+      # ブランチ（`.tagpr` の `releaseBranch`）の上にあることを確かめる（`release-tag.mjs`）。
+      # versionFile が無いと版を何も確かめずに通り、tarball の名前が違うと分かるのがテストの後になるので、
+      # ここで必須にする
+      - name: Check the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          files="$(git config --file .tagpr --get tagpr.versionFile || true)"
+          if [ -z "$files" ] || [ "$files" = - ]; then
+            echo "::error::.tagpr has no tagpr.versionFile; list the module's .pm and META.json there"
+            exit 1
+          fi
+          node scripts/tagpr/release-tag.mjs "$TAG"
+
+      # **Release の本文は CHANGELOG のその版の節。** 節が無ければ、PAUSE へ送る前に止める
+      - name: Take the release notes from CHANGELOG.md
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/notes"
+          node scripts/tagpr/release-notes.mjs "$TAG" > "$RUNNER_TEMP/notes/release-notes.md"
+
+      # **CPAN から何かを入れる前に置く。** 後に置くと、依存のコードが本文を書き換えられる。
+      # `overwrite` は「Re-run all jobs」で build がもう一度置くとき用
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: notes
+          path: ${{ runner.temp }}/notes/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+      # actions-setup-perl は Perl を GitHub Releases からトークン無しで取り、GitHub が匿名の通信を
+      # 絞ると 504 で落ちる。tarball を作る前、PAUSE へ送る前に落ちるので、そのときは落ちたジョブを
+      # 再実行する（上の notes の artifact は上書きされる）。版はこの repo の actions.lock が固定する
+      - uses: shogo82148/actions-setup-perl@v1.44.5
+        with:
+          perl-version: ${{ inputs.perl-version }}
+
+      # テストの依存と、`minil dist` の依存（Minilla と、minil.toml の markdown_maker）。develop の
+      # 依存のほかのもの（author tests 用）は入れない
+      - name: Install dependencies
+        env:
+          CPANM_MODULES: ${{ inputs.cpanm-modules }}
+        run: |
+          set -euo pipefail
+          read -ra extra <<<"$CPANM_MODULES"
+          cpanm --quiet --notest --installdeps --with-configure .
+          cpanm --quiet --notest Minilla Pod::Markdown::Github "${extra[@]}"
+
+      # 入力は呼ぶ側の workflow のファイルに書いたものなので、式で `run:` に埋めず、環境変数で渡す
+      - name: Test
+        env:
+          TEST: ${{ inputs.test }}
+        run: bash -euo pipefail -c "$TEST"
+
+      # 取り込み先の CI（pull request で走る dist のジョブ）も同じ形で tarball を作り、リリース PR の
+      # 段階で確かめる。
+      #
+      # `--no-test`: テストは上で走らせた。`minil dist` は xt/ の author tests（綴り、ネットワーク越しの
+      # PAUSE の権限など）も走らせるが、それはリリースを止める理由にしない。
+      # tarball の名前は META.json の `name` と版から決まる（Minilla の決め方）
+      - name: Build the tarball
+        id: dist
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          name="$(node -p 'require("./META.json").name')"
+          tarball="$name-${TAG#v}.tar.gz"
+          minil dist --no-test
+          if [ ! -f "$tarball" ]; then
+            echo "::error::minil dist did not make $tarball"
+            ls -- *.tar.gz >&2 || true
+            exit 1
+          fi
+          # Minilla は Git が追うファイルをすべて入れる。scripts/tagpr/ は minil.toml の
+          # FileGatherer の exclude_match で外しておく
+          if tar -tzf "$tarball" | grep -q '^[^/]*/scripts/tagpr/'; then
+            echo "::error::$tarball contains scripts/tagpr/; add \"^scripts/\" to exclude_match of [FileGatherer] in minil.toml"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/dist"
+          mv -- "$tarball" "$RUNNER_TEMP/dist/"
+          echo "tarball=$tarball" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: dist
+          path: ${{ runner.temp }}/dist/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+  upload:
+    name: Upload to PAUSE
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # **PAUSE の認証情報は、呼ぶ側の repo の `cpan` 環境に置く**（repo の secret にしない。このジョブ
+    # だけが読む）。reusable workflow のジョブに書いた `environment:` は、呼ぶ側の repo の環境を指す
+    environment: cpan
+    permissions: {}
+    steps:
+      # checkout しない。ここで走るのは curl と、build が作った tarball だけ
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: dist
+          path: ${{ runner.temp }}/dist
+
+      # CPAN::Uploader が送るのと同じフォーム（lib/CPAN/Uploader.pm の `_upload`）。それと同じく、HTTP の
+      # エラーで落とし、ほかは受け付けられたとみなす。PAUSE はその後で index し、結果をメールで送る。
+      #
+      # 認証情報はコマンドラインではなく curl の設定ファイルで渡す（`ps` に出ないように）。値は引用符で
+      # 囲み、`\` と `"` を逃がすので、どんなパスワードでも通る。PAUSE ID は PAUSE と同じく大文字にする
+      - name: Upload to PAUSE
+        env:
+          PAUSE_USER: ${{ secrets.PAUSE_USER }}
+          PAUSE_PASSWORD: ${{ secrets.PAUSE_PASSWORD }}
+          TARBALL: ${{ needs.build.outputs.tarball }}
+        run: |
+          set -euo pipefail
+          tarball="$RUNNER_TEMP/dist/$TARBALL"
+          if [ ! -f "$tarball" ]; then
+            echo "::error::The artifact has no $TARBALL"
+            exit 1
+          fi
+          if [ -z "$PAUSE_USER" ] || [ -z "$PAUSE_PASSWORD" ]; then
+            echo "::error::PAUSE_USER or PAUSE_PASSWORD is not set in the cpan environment of ${GITHUB_REPOSITORY}"
+            exit 1
+          fi
+          user="${PAUSE_USER^^}"
+          credentials="$user:$PAUSE_PASSWORD"
+          credentials="${credentials//\\/\\\\}"
+          credentials="${credentials//\"/\\\"}"
+          config="$RUNNER_TEMP/curl-pause.conf"
+          response="$RUNNER_TEMP/pause-response.html"
+          trap 'rm -f -- "$config"' EXIT
+          (umask 077 && printf 'user = "%s"\n' "$credentials" > "$config")
+          # HTTP のエラーなら、PAUSE の返した内容を出す（やみくもに送り直せないため）
+          if ! curl --fail-with-body --silent --show-error --output "$response" \
+            --config "$config" \
+            -F "HIDDENNAME=$user" \
+            -F 'CAN_MULTIPART=1' \
+            -F "pause99_add_uri_upload=$TARBALL" \
+            -F "pause99_add_uri_httpupload=@$tarball" \
+            -F 'pause99_add_uri_uri=' \
+            -F 'SUBMIT_pause99_add_uri_httpupload= Upload this file from my disk ' \
+            'https://pause.perl.org/pause/authenquery?ACTION=add_uri'; then
+            sed -e 's/<[^>]*>//g' -e '/^[[:space:]]*$/d' -- "$response" >&2 || true
+            exit 1
+          fi
+
+  release:
+    name: Create the GitHub release
+    # **PAUSE へ送った後に置く。** 逆にすると、送るのに失敗した版の Release が残る。ここだけ落ちたら
+    # `gh run rerun <run ID> --failed` でこのジョブだけをやり直す
+    needs: upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write  # GitHub Release を作る
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: notes
+          path: ${{ runner.temp }}/notes
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --title "$TAG" --verify-tag --notes-file "$RUNNER_TEMP/notes/release-notes.md"

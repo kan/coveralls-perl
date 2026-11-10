@@ -158,8 +158,9 @@ docker compose run --rm perl minil build                  # 生成物の作り�
 - `PATH` は `Dockerfile` の `ENV` で、イメージの既定の `PATH` の前に `/app/local/bin` を足している。
   `docker-compose.yml` で `PATH` を丸ごと置き換えない（イメージの既定のディレクトリが消える）
 - **Perl の版は次の 4 つで揃える。** `Dockerfile` の `FROM`、`docker-compose.yml` のボリューム名、
-  `master.yml` の `perl:<版>`、`publish.yml` の `perl-version`。`master.yml` では、`perl` のマトリクスの
-  最新版と `include:`、`dist` のコンテナが該当する。版を上げるときは `git grep -n '5\.44'` のように
+  `master.yml` の `perl:<版>`、`publish.yml` の `with:` の `perl-version`（共通の workflow
+  `publish-cpan.yml` に渡す値。既定も同じ版だが、`scripts/check-perl-version.pl` がこの行を探すので
+  省かない）。`master.yml` では、`perl` のマトリクスの最新版と `include:`、`dist` のコンテナが該当する。版を上げるときは `git grep -n '5\.44'` のように
   前の版で repo を探し、この節や各ファイルのコメントに書いた版も一緒に直す。Dependabot（`dependabot.yml` の `docker`）が PR で
   上げるのは `Dockerfile` だけだ。その PR を取り込むときは、残りも同じ PR で手で上げる。
   食い違いは `master.yml` の `perl-version-sync` ジョブ（`scripts/check-perl-version.pl`）が落とす。
@@ -183,8 +184,10 @@ docker compose run --rm perl minil build                  # 生成物の作り�
 - **Linux のジョブは、できるだけ Docker Hub の `perl:<版>` のコンテナで動かす。** actions-setup-perl は
   Perl を GitHub Releases から認証なしでダウンロードするので、GitHub が匿名のアクセスを絞ると 504 で
   落ちる。`oldest-perl` と `publish.yml` だけは actions-setup-perl のまま。今の runner で使える `perl` の
-  イメージは 5.26 以降だけで（`master.yml` のマトリクスのコメント）、`publish.yml` はコンテナにすると
-  Node も用意し直すことになるため。504 で落ちたら `gh run rerun <run-id> --failed` で再実行する
+  イメージは 5.26 以降だけ（`master.yml` のマトリクスのコメント）だからだ。`publish.yml` のジョブは
+  kan/tagpr-scripts の共通の workflow（`publish-cpan.yml`）の中にあり、actions-setup-perl の版もこの repo の
+  `actions.lock` ではなく tagpr-scripts の側で固定される。動きは `scripts/tagpr/README.md` の
+  「The CPAN publish workflow」。504 で落ちたら `gh run rerun <run-id> --failed` で再実行する
 - `actions/checkout` には `persist-credentials: false` を付ける（checkout の認証情報を `.git/config` に
   残さない）。外してよいのは、そのジョブが checkout の認証情報で push するときだけ
 - Dependabot が action の更新 PR を週 1 回出す（lockfile も書き換わる）。開発用コンテナの `Dockerfile` の
@@ -208,8 +211,8 @@ GitHub Release を作る。仕組みと落ちたときの扱いは `scripts/tagp
   「What the CHANGELOG has to look like」
 - **`scripts/tagpr/` を手で編集しない。** 変えるときは kan/tagpr-scripts を直し、
   `git subtree pull -S --prefix=scripts/tagpr https://github.com/kan/tagpr-scripts.git main --squash` で
-  取り込む。同じ PR で `tagpr.yml` の `uses: kan/tagpr-scripts/...@<SHA>` を、squash のコミットの
-  `git-subtree-split` の SHA へ上げる。食い違いは `master.yml` の `tagpr-subtree` ジョブが落とす。
+  取り込む。同じ PR で `tagpr.yml`、`tagpr-label.yml`、`publish.yml` の `uses: kan/tagpr-scripts/...@<SHA>` を、
+  squash のコミットの `git-subtree-split` の SHA へ上げる。食い違いは `master.yml` の `tagpr-subtree` ジョブが落とす。
   **この PR はマージコミットでマージする**（squash すると次の subtree pull が壊れる）
 - PAUSE の認証情報は GitHub の `cpan` environment の secret（`PAUSE_USER` / `PAUSE_PASSWORD`）にある。
   repo のルートに `.pause`（手で PAUSE へ上げていたころの認証情報）があっても、コミットしない（`.gitignore` 済み）
