@@ -173,6 +173,15 @@ number of the pull request, in place of what is detected from the CI service. On
 not listed in ["USAGE"](#usage), set them to send what the CI service knows. `COVERALLS_PULL_REQUEST`
 set to `false` means that the build is not for a pull request.
 
+When no CI service is detected, the build is sent as a manual upload (`service_event_type`
+`manual`), unless one of these variables other than `COVERALLS_PULL_REQUEST` is set, or
+`COVERALLS_PERL_SERVICE_NAME`: then it is sent as a CI build, without an event type.
+
+## COVERALLS\_EVENT\_TYPE
+
+Send this as the event type of the build (`service_event_type`), as the official
+coverage-reporter does.
+
 ## COVERALLS\_PERL\_SERVICE\_NAME
 
 Another name of `COVERALLS_SERVICE_NAME`, which wins when both are set.

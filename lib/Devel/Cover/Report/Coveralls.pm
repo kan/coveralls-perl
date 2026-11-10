@@ -330,7 +330,14 @@ sub get_config {
         $json->{commit_sha} = $ENV{GITHUB_SHA} if $ENV{GITHUB_SHA};
     } else {
         $json->{service_name} = $config->{service_name} || $SERVICE_NAME;
-        $json->{service_event_type} = 'manual';
+        # A build that the environment gives the values of a CI service (the overrides below) is
+        # one of a CI service that is not detected, not an upload by hand. The official
+        # coverage-reporter sends manual only when COVERALLS_RUN_LOCALLY is set.
+        $json->{service_event_type} = 'manual'
+            unless grep { defined env_value($_) } qw(
+                COVERALLS_SERVICE_NAME COVERALLS_PERL_SERVICE_NAME COVERALLS_SERVICE_NUMBER
+                COVERALLS_SERVICE_JOB_ID COVERALLS_SERVICE_JOB_NUMBER
+            );
     }
 
     # Coveralls requires the token on every CI service, Travis CI included.
@@ -347,8 +354,9 @@ sub get_config {
         [ service_pull_request => 'COVERALLS_PULL_REQUEST' ],
         [ service_branch       => 'COVERALLS_GIT_BRANCH' ],
         [ commit_sha           => 'COVERALLS_GIT_COMMIT' ],
-        # The older name of COVERALLS_SERVICE_NAME. It comes last, so it wins when both are set.
+        # The older name of COVERALLS_SERVICE_NAME. It comes after it, so it wins when both are set.
         [ service_name         => 'COVERALLS_PERL_SERVICE_NAME' ],
+        [ service_event_type   => 'COVERALLS_EVENT_TYPE' ],
     );
     for my $override (@overrides) {
         my ($key, $name) = @$override;
@@ -629,6 +637,15 @@ Send these as the name of the CI service, the build number, the job ID, the job 
 number of the pull request, in place of what is detected from the CI service. On a CI service
 not listed in L</USAGE>, set them to send what the CI service knows. C<COVERALLS_PULL_REQUEST>
 set to C<false> means that the build is not for a pull request.
+
+When no CI service is detected, the build is sent as a manual upload (C<service_event_type>
+C<manual>), unless one of these variables other than C<COVERALLS_PULL_REQUEST> is set, or
+C<COVERALLS_PERL_SERVICE_NAME>: then it is sent as a CI build, without an event type.
+
+=head2 COVERALLS_EVENT_TYPE
+
+Send this as the event type of the build (C<service_event_type>), as the official
+coverage-reporter does.
 
 =head2 COVERALLS_PERL_SERVICE_NAME
 
