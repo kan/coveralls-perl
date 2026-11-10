@@ -117,6 +117,22 @@ jobs:
               exit 1
             fi
 
+  # The Perl of the development container (Dockerfile) must be the newest version of the perl
+  # matrix, the dist container, the docker-compose.yml volume and publish.yml (AGENTS.md, "テスト").
+  # Dependabot updates only the Dockerfile. The versions stay written out in each file instead of
+  # being read from the Dockerfile: that would need a job passing the version to the others, and
+  # publish.yml is another workflow. A literal image (dist) can also be pinned by digest, which
+  # `gh actions-lock` suggests; one built from an expression cannot be checked by it.
+  perl-version-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the Perl versions against the Dockerfile
+        run: perl scripts/check-perl-version.pl
+
   # scripts/tagpr/ must be the tagpr-scripts commit that tagpr.yml calls (scripts/tagpr/README.md).
   tagpr-subtree:
     runs-on: ubuntu-latest

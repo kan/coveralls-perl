@@ -147,8 +147,10 @@ docker compose run --rm perl minil build                  # 生成物の作り�
   `master.yml` の `perl:<版>`、`publish.yml` の `perl-version`。`master.yml` では、`perl` のマトリクスの
   最新版と `include:`、`dist` のコンテナが該当する。版を上げるときは `git grep -n '5\.44'` のように
   前の版で repo を探し、この節や各ファイルのコメントに書いた版も一緒に直す。Dependabot（`dependabot.yml` の `docker`）が PR で
-  上げるのは `Dockerfile` だけだ。その PR を取り込むときは、残りも同じ PR で手で上げる。CI が古い版の
-  まま通っても、新しい版を試したことにはならない
+  上げるのは `Dockerfile` だけだ。その PR を取り込むときは、残りも同じ PR で手で上げる。
+  食い違いは `master.yml` の `perl-version-sync` ジョブ（`scripts/check-perl-version.pl`）が落とす。
+  手元では `perl scripts/check-perl-version.pl` で確かめられる。このスクリプトは版を書いた行の形を
+  正規表現で探すので、該当する行の書き方を変えたら、スクリプトも合わせて直す
 
 - **`t/01_basic.t` で `get_config` を試す subtest は、最初に `local @ENV{@CI_VARS};` で CI の環境変数を
   すべて消す。** テスト自体が CI の上で走る。`GITHUB_TOKEN` や `GITHUB_ACTIONS` が入っていると、
