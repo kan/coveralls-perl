@@ -100,9 +100,15 @@ jobs:
           retention-days: 7
           overwrite: true
 
+      # The Perl of the development container (Dockerfile) and of the `dist` job of master.yml,
+      # which runs in the perl image from Docker Hub. This job gets it from actions-setup-perl, which
+      # downloads Perl from GitHub Releases without a token and fails with 504 when GitHub throttles
+      # anonymous traffic. It fails before the tarball is made and before anything goes to PAUSE,
+      # so re-run the failed jobs then (the notes artifact above is overwritten).
+      # A container here would also need Node for the steps above.
       - uses: shogo82148/actions-setup-perl@v1.44.4
         with:
-          perl-version: '5.42'
+          perl-version: '5.44'
       # The dependencies of the tests, and of `minil dist` (Minilla, and the markdown_maker of
       # minil.toml). Not the rest of the develop prerequisites: they are author tests.
       - name: Install dependencies
