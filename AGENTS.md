@@ -42,7 +42,10 @@
 
 1. `$options->{file}` の各ファイルについて `get_source` がソースを読み、行ごとのカバレッジを配列にする。
    `_parse_line` は「その行に文がない → `undef`」「uncoverable → `undef`」「それ以外 → 実行回数」を返す。
-   ファイル名の先頭の `blib/` は外す。開けないファイルは送らない。
+   ファイル名の先頭の `blib/` は外す。開けないファイルは送らない。ソースの文字列は UTF-8 として
+   デコードし、先頭の BOM を外して送る。Encode の厳密な `UTF-8` でデコードできないファイル（Latin-1 のものや、
+   U+FFFF などの非文字を含むもの）はバイト列のまま送る。`source_digest` はどちらもデコード前のバイト列から
+   計算する。
    `get_branches` がブランチカバレッジを、API の `branches` の形（ブランチごとに行、block、branch、
    実行回数の 4 つを並べた配列）にする。block はその行の判定の順番、branch は判定の真が 0 で偽が 1。
    uncoverable のブランチは送らない。ブランチカバレッジを集めていないとき（`-coverage statement`）は

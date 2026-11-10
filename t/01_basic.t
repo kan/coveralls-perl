@@ -681,6 +681,46 @@ subtest 'get_source (CRLF, no newline at the end)' => sub {
     is_deeply $got->{coverage}, [1, 1], 'a line each';
 };
 
+subtest 'get_source (UTF-8)' => sub {
+    my $bytes = "# \xe3\x81\x82\nprint 1;\n";    # "あ" in UTF-8
+    my $tmp = File::Temp->new;
+    binmode $tmp;
+    print $tmp $bytes;
+    close $tmp;
+
+    my $got = Devel::Cover::Report::Coveralls::get_source($tmp->filename, sub { 1 });
+    is $got->{source}, "# あ\nprint 1;\n", 'the text is decoded';
+    is $got->{source_digest}, Digest::MD5::md5_hex($bytes), 'the digest of the bytes of the file';
+    like(JSON::PP->new->ascii->encode($got), qr/"# \\u3042\\nprint 1;\\n"/,
+        'one character in the JSON, not one for each byte');
+};
+
+subtest 'get_source (not UTF-8)' => sub {
+    my $bytes = "# caf\xe9\nprint 1;\n";    # "café" in Latin-1
+    my $tmp = File::Temp->new;
+    binmode $tmp;
+    print $tmp $bytes;
+    close $tmp;
+
+    my $got = Devel::Cover::Report::Coveralls::get_source($tmp->filename, sub { 1 });
+    is $got->{source}, $bytes, 'the bytes as they are';
+    is $got->{source_digest}, Digest::MD5::md5_hex($bytes), 'the digest of the bytes of the file';
+    like(JSON::PP->new->ascii->encode($got), qr/"# caf\\u00e9\\nprint 1;\\n"/,
+        'one character in the JSON for each byte');
+};
+
+subtest 'get_source (UTF-8 with a byte order mark)' => sub {
+    my $bytes = "\xef\xbb\xbf# \xe3\x81\x82\n";
+    my $tmp = File::Temp->new;
+    binmode $tmp;
+    print $tmp $bytes;
+    close $tmp;
+
+    my $got = Devel::Cover::Report::Coveralls::get_source($tmp->filename, sub { 1 });
+    is $got->{source}, "# あ\n", 'the byte order mark is left out of the text';
+    is $got->{source_digest}, Digest::MD5::md5_hex($bytes), 'but not out of the digest';
+};
+
 subtest 'get_source (a copy under blib/)' => sub {
     my $dir = File::Temp::tempdir(CLEANUP => 1);
     my $cwd = Cwd::getcwd();
