@@ -49,7 +49,11 @@
    では git を呼ばず、`GIT_ID` / `GIT_BRANCH` / `GIT_AUTHOR_NAME` などの環境変数だけを使う。作業ツリーの
    中では git の値が先で、環境変数は git が返さなかった項目だけを埋める。分からない値は空文字列にせず、
    項目ごと送らない
-4. `HTTP::Tiny` で `<endpoint>/api/v1/jobs` へ `json=<JSON>` を form で POST し、結果を標準出力に出す。
+4. `HTTP::Tiny` で `<endpoint>/api/v1/jobs` へ、JSON を multipart の `json_file` に入れて POST し、
+   結果を標準出力に出す（`json_file_request`）。これは API のドキュメントに書かれた形。1.0.0 まで使って
+   いた form の `json=` も送れてはいたが、ドキュメントには無い。各ファイルには、ファイルのバイト列の
+   MD5 を `source_digest` として付ける（`blib/` の下のファイルはコピー元のもの）。`source` も残す
+   （手動のリポジトリの Coveralls Enterprise が要求するため）。
    **送信に失敗したら `die` する**（`parse_response` が判定する）。`cover` は捕まえないので、終了コードが
    0 以外になり CI のジョブが落ちる。`COVERALLS_NO_FAIL` が有効なら `die` せずに戻る。
    `get_config` の `repo_token` が無いときの `die` も、`report` が捕まえて同じように扱う
@@ -141,7 +145,7 @@ docker compose run --rm perl minil build                  # 生成物の作り�
   すべて消す。** テスト自体が CI の上で走る。`GITHUB_TOKEN` や `GITHUB_ACTIONS` が入っていると、
   別の分岐に入る。`get_config` / `get_git_info` が読む環境変数を足したら、`@CI_VARS` にも足す
 - `get_git_info` を呼ぶテストは、git の作業ツリーの中で実行する必要がある
-- **テストから `report` を呼ぶときは、`HTTP::Tiny::post_form` を `local` で差し替える。** 差し替えないと
+- **テストから `report` を呼ぶときは、`HTTP::Tiny::request` を `local` で差し替える。** 差し替えないと
   Coveralls へ実際に POST する。例は `t/01_basic.t` の「report exits non-zero when the upload fails」
 - CI の `master.yml` は perl 5.44（マトリクスの最新版）のときだけ、このモジュール自身で自分のカバレッジを Coveralls へ送る
   （`DEVEL_COVER_SELF=1`）
