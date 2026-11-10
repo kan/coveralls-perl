@@ -13,9 +13,11 @@ services:
       - ./:/app
       - perl-local-5.44:/app/local
     environment:
-      HOME: /tmp
+      # Inside the named volume, so that cpm's download cache and build.log
+      # (~/.perl-cpm) survive `docker compose run --rm`. cpm creates the directory
+      # if the volume predates it.
+      HOME: /app/local/.home
       PERL5LIB: /app/local/lib/perl5
-      PATH: /app/local/bin:/usr/local/bin:/usr/bin:/bin
     tty: true
 
 volumes:

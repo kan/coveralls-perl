@@ -8,7 +8,11 @@ ARG UID=1000
 ARG GID=1000
 
 RUN cpanm --quiet --notest App::cpm \
-    && mkdir -p /app/local \
-    && chown "$UID:$GID" /app/local
+    && mkdir -p /app/local/.home \
+    && chown -R "$UID:$GID" /app/local
+
+# The commands cpm installs into the named volume (minil and so on) come first; the
+# image's own PATH stays after them.
+ENV PATH=/app/local/bin:$PATH
 
 WORKDIR /app

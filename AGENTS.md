@@ -138,6 +138,11 @@ docker compose run --rm perl minil build                  # 生成物の作り�
   `Dockerfile` と一緒にボリューム名も変える（別の版でビルドした XS モジュールは読み込めない）。前の
   ボリュームは `docker volume rm coveralls-perl_<前の名前>` で消す（perl-cpm のころのものは
   `coveralls-perl_perl-local`）
+- コンテナの `HOME` は同じボリュームの中の `/app/local/.home` にしてある。cpm のダウンロードの
+  キャッシュとビルドのログ（`~/.perl-cpm`）を、`--rm` で消さないため。**`cpm install` が失敗したら、
+  `docker compose run --rm perl cat /app/local/.home/.perl-cpm/build.log` でログを読む**
+- `PATH` は `Dockerfile` の `ENV` で、イメージの既定の `PATH` の前に `/app/local/bin` を足している。
+  `docker-compose.yml` で `PATH` を丸ごと置き換えない（イメージの既定のディレクトリが消える）
 - **Perl の版は次の 4 つで揃える。** `Dockerfile` の `FROM`、`docker-compose.yml` のボリューム名、
   `master.yml` の `perl:<版>`、`publish.yml` の `perl-version`。`master.yml` では、`perl` のマトリクスの
   最新版と `include:`、`dist` のコンテナが該当する。版を上げるときは `git grep -n '5\.44'` のように
