@@ -7,6 +7,8 @@ Versions up to 0.32.1 were released from `Changes`, before this file existed.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-10
+
 - Rewrite the description, `COVERALLS_ENDPOINT` and the links in the documentation, and add a Coveralls badge to the README (#67)
 - Leave the bots (tagpr's release pull requests and Dependabot) out of the contributors in the distribution's metadata (#71)
 - Work outside a git repository: git is not run there, so it prints no errors, and values that are not known are left out instead of sent empty. The commit, its author and the branch can be given there as `GIT_ID`, `GIT_BRANCH`, `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` and `GIT_MESSAGE`, the names of the official coverage-reporter (#35)
@@ -117,6 +119,7 @@ Versions up to 0.32.1 were released from `Changes`, before this file existed.
 
 - Original version
 
+[1.1.0]: https://github.com/kan/coveralls-perl/releases/tag/v1.1.0
 [1.0.0]: https://github.com/kan/coveralls-perl/releases/tag/v1.0.0
 [0.32.1]: https://metacpan.org/release/KAN/Devel-Cover-Report-Coveralls-0.32.1
 [0.32]: https://metacpan.org/release/KAN/Devel-Cover-Report-Coveralls-0.32
