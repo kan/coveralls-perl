@@ -77,7 +77,7 @@
          "web" : "https://github.com/kan/coveralls-perl"
       }
    },
-   "version" : "1.0.0",
+   "version" : "1.1.0",
    "x_contributors" : [
       "Andreas Vögele <andreas@andreasvoegele.com>",
       "David Steinbrunner <dsteinbrunner@pobox.com>",
