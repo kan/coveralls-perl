@@ -13,6 +13,7 @@ Versions up to 0.32.1 were released from `Changes`, before this file existed.
 - Override what the CI service gives with `COVERALLS_SERVICE_NAME`, `COVERALLS_SERVICE_NUMBER`, `COVERALLS_SERVICE_JOB_ID`, `COVERALLS_SERVICE_JOB_NUMBER`, `COVERALLS_PULL_REQUEST`, `COVERALLS_GIT_BRANCH` and `COVERALLS_GIT_COMMIT`, as in the official coverage-reporter (#35)
 - Send the job in the form the Coveralls jobs API documents: a JSON file in the multipart field `json_file`, in place of the form field `json`, with the MD5 digest of each source file as `source_digest` (#55)
 - Send the branch coverage that Devel::Cover collected, leaving out the branches marked uncoverable (#31)
+- Send source files written in UTF-8 as their characters, so that the non-ASCII text in them is not garbled on Coveralls. Files that are not valid UTF-8 are sent as their bytes, as before (#81)
 ## [1.0.0] - 2026-11-07
 
 - Update the usage examples for GitHub Actions (with parallel builds), Travis CI and the other CI services, and document `COVERALLS_NO_FAIL` and `COVERALLS_PERL_SERVICE_NAME` (#58)

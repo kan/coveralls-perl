@@ -11,6 +11,7 @@ our $SERVICE_NAME = 'coveralls-perl';
 
 use Devel::Cover::DB;
 use Digest::MD5;
+use Encode ();
 use HTTP::Tiny;
 use JSON::PP;
 use YAML;
@@ -18,7 +19,10 @@ use Data::Dumper;
 
 # The source file to send: its name, its text, the MD5 digest of the file and the coverage of each
 # line. The digest is of the bytes of the file as they are, which is what the jobs API asks for;
-# the text has each line ended with "\n", also where the file uses "\r\n".
+# the text has each line ended with "\n", also where the file uses "\r\n". The text is decoded
+# from UTF-8, so that the JSON holds the characters and not each byte of them. A file that the
+# strict UTF-8 of Encode does not decode is sent as its bytes: an old Latin-1 source, and also one
+# with a noncharacter such as U+FFFF.
 #
 # A file under blib/ is sent by the name of the file it was copied from, so the digest is of that
 # file when it exists: the build may change the copy (the #! line of a script).
@@ -41,6 +45,15 @@ sub get_source {
     }
 
     close($fh);
+
+    if ($source =~ /[^\x00-\x7f]/) {
+        local $@;
+        my $text = eval { Encode::decode('UTF-8', $source, Encode::FB_CROAK | Encode::LEAVE_SRC) };
+        if (defined $text) {
+            $text =~ s/\A\x{FEFF}//;    # a byte order mark is not part of line 1
+            $source = $text;
+        }
+    }
 
     if ($file =~ s!^blib/!!) {
         if (open my $orig, '<:raw', $file) {
