@@ -1,0 +1,51 @@
+# Temporary: checks how Coveralls takes a job sent from outside a git work tree (#85), and how it
+# shows a UTF-8 source (#81). Not to be merged.
+name: probe
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    container:
+      image: perl:5.44
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install this module
+        run: |
+          cpanm --quiet --notest --installdeps --with-configure .
+          perl Build.PL
+          ./Build build
+          ./Build install
+      - name: Make coverage outside a git work tree
+        run: |
+          mkdir -p /tmp/probe/lib /tmp/probe/t
+          cd /tmp/probe
+          printf '%s\n' 'package Probe;' 'use strict;' 'use warnings;' 'use utf8;' \
+            '# 日本語のコメント: あいうえお' \
+            'sub greet { my $who = shift; return $who ? "こんにちは、$who" : "こんにちは" }' \
+            '1;' > lib/Probe.pm
+          printf '%s\n' 'use strict;' 'use warnings;' 'use Test::More;' 'use Probe;' \
+            'ok Probe::greet("x");' 'done_testing;' > t/a.t
+          git rev-parse --is-inside-work-tree || echo "not in a git work tree"
+          HARNESS_PERL_SWITCHES=-MDevel::Cover prove -Ilib t
+      - name: Send without head.id
+        working-directory: /tmp/probe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_FLAG_NAME: no-head-id
+        run: env -u GITHUB_SHA cover -report coveralls
+      - name: Send with head.id (control)
+        if: always()
+        working-directory: /tmp/probe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_FLAG_NAME: with-head-id
+        run: cover -report coveralls
